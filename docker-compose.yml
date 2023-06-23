@@ -3,6 +3,7 @@ version: '3.9'
 services:
   nginx:
     container_name: youtube-api-nginx
+    restart: always
     image: nginx:stable-alpine
     depends_on:
       - client
