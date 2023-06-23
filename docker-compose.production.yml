@@ -3,7 +3,7 @@ version: '3.9'
 services:
   nginx:
     ports:
-      - "81:81"
+      - "10000:10000"
     volumes:
       - ./nginx/nginx.conf.production:/etc/nginx/conf.d/nginx.conf
 
@@ -20,7 +20,3 @@ services:
       target: production
     volumes:
       - ./client/src:/app/src
-    environment:
-      - WDS_SOCKET_PORT=0
-    stdin_open: true
-    tty: true

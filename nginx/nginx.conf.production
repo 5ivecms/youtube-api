@@ -1,7 +1,7 @@
 server {
-  listen 81;
+  listen 10000;
 
-  server_name youtube-api.local;
+  server_name 127.0.0.1;
 
   location / {
     proxy_pass http://client:3000;
