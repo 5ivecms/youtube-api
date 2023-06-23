@@ -20,7 +20,7 @@ const LoginPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>Авторизация2</title>
+        <title>Авторизация</title>
       </Helmet>
       <Box sx={styles.container}>
         <Paper sx={styles.paper}>
