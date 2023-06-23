@@ -17,15 +17,15 @@ import { AuthModule } from './modules/auth/auth.module'
 import { DomainModule } from './modules/domain/domain.module'
 import { ApiKeyModule } from './modules/api-key/api-key.module'
 
-const ENV = process.env.NODE_ENV
+const ENV = process.env.NODE_ENV ?? 'development'
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      envFilePath: !ENV ? '.env.dev' : `.env.${ENV}`,
+      envFilePath: `.env.${ENV}`,
       load: [databaseConfig, serverConfig, settingsConfig, tokensConfig, baseUser, cacheConfig],
       validationSchema: Joi.object({
-        NODE_ENV: Joi.string().valid('dev', 'prod').default('dev'),
+        NODE_ENV: Joi.string().valid('development', 'production').default('development'),
         PORT: Joi.number().default(5000),
         POSTGRES_HOST: Joi.string().required(),
         POSTGRES_PORT: Joi.number().required(),

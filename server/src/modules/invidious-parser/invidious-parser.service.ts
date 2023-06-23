@@ -186,7 +186,7 @@ export class InvidiousParserService {
     return { title, description, views, likes, related }
   }
 
-  private parseRelatedVideos($: cheerio.Root): VideoItem[] {
+  private parseRelatedVideos($: any): VideoItem[] {
     const relatedVideos: VideoItem[] = []
     const relatedVideosThumbs = $('.pure-u-1.pure-u-lg-1-5 div.thumbnail')
     Object.keys(relatedVideosThumbs).forEach((key) => {
