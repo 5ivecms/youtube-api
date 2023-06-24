@@ -17,10 +17,12 @@ import PrivateRoute from './PrivateRoute'
 const AppRouter: FC = () => {
   return (
     <Routes>
-      <Route element={<HomePage />} path={browseRoutes.base.home()} />
+      <Route element={<LoginPage />} path={browseRoutes.auth.login()} />
       <Route element={<NotFoundPage />} path={browseRoutes.base.notFound()} />
 
-      <Route element={<LoginPage />} path={browseRoutes.auth.login()} />
+      <Route element={<PrivateRoute />}>
+        <Route element={<HomePage />} path={browseRoutes.base.home()} />
+      </Route>
 
       <Route element={<PrivateRoute />}>
         <Route element={<DomainIndexPage />} path={browseRoutes.domain.index()} />

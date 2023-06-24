@@ -1,6 +1,5 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import { Box, Paper } from '@mui/material'
-import type { FC } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Navigate } from 'react-router-dom'
 
@@ -10,7 +9,7 @@ import { selectCurrentUser } from '../../../core/redux/slices/auth/selectors'
 import { useAppSelector } from '../../../core/redux/store'
 import { styles } from './styles'
 
-const LoginPage: FC = () => {
+const LoginPage = () => {
   const user = useAppSelector(selectCurrentUser)
 
   if (user) {
@@ -20,7 +19,7 @@ const LoginPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>Авторизация2</title>
+        <title>Авторизация</title>
       </Helmet>
       <Box sx={styles.container}>
         <Paper sx={styles.paper}>

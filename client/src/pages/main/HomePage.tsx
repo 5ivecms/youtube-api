@@ -1,8 +1,6 @@
-import type { FC } from 'react'
-
 import { AdminLayout } from '../../layouts'
 
-const HomePage: FC = () => {
+const HomePage = () => {
   return (
     <AdminLayout title="Главная">
       <div>HomePage</div>
