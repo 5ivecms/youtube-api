@@ -12,8 +12,6 @@ services:
       target: production
     volumes:
       - ./server/src:/app/src
-    depends_on:
-      - db
 
   client:
     build:
