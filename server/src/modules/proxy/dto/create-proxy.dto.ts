@@ -1,11 +1,15 @@
 import { IsString, IsBoolean, IsEnum, IsNumber, IsOptional } from 'class-validator'
 
-import { ProxyProtocol } from '../proxy.types'
+import { ProxyProtocol, ProxyType } from '../proxy.types'
 
 export class CreateProxyDto {
   @IsString()
   @IsEnum(ProxyProtocol)
   public readonly protocol: ProxyProtocol
+
+  @IsString()
+  @IsEnum(ProxyType)
+  public readonly type: ProxyType
 
   @IsString()
   public readonly ip: string

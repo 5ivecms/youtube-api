@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm'
 
-import { ProxyProtocol } from './proxy.types'
+import { ProxyProtocol, ProxyType } from './proxy.types'
 
 @Entity('proxy')
 export class ProxyEntity {
@@ -21,6 +21,9 @@ export class ProxyEntity {
 
   @Column({ type: 'varchar' })
   public readonly password: string
+
+  @Column({ type: 'enum', enum: ProxyType, default: ProxyType.ipv4 })
+  public readonly type: ProxyType
 
   @Column({ type: 'boolean', default: true })
   public readonly isActive?: boolean
