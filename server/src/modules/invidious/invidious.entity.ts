@@ -36,6 +36,18 @@ export class InvidiousEntity {
   public readonly pingAvg: number
 
   @Index()
+  @Column({ type: 'boolean', default: false })
+  public readonly cors: boolean
+
+  @Index()
+  @Column({ type: 'boolean', default: false })
+  public readonly api: boolean
+
+  @Index()
+  @Column({ type: 'varchar', default: 'https' })
+  public readonly type: string
+
+  @Index()
   @Column({ type: 'int', default: 0 })
   public readonly index: number
 

@@ -317,16 +317,16 @@ export class InvidiousParserService {
 
   public async loadHosts() {
     const { data } = await axios.get('https://api.invidious.io/instances.json?pretty=1&sort_by=type,users')
-    const hosts: string[] = data
-      .map(([_, data]) => data.uri)
-      .filter((domain: string) => domain.indexOf('.onion') === -1)
-      .filter((domain: string) => domain.indexOf('.i2p') === -1)
+    const hosts: [] = data
+      .map(([_, { cors, api, type, uri }]) => ({ cors, api, type, uri }))
+      .filter(({ uri }) => uri.indexOf('.onion') === -1)
+      .filter(({ uri }) => uri.indexOf('.i2p') === -1)
 
     await Promise.all(
-      hosts.map(async (host) => {
+      hosts.map(async ({ cors, api, type, uri: host }) => {
         let existHost = await this.invidiousService.findOneByHost(host)
         if (!existHost) {
-          await this.invidiousService.create({ host })
+          await this.invidiousService.create({ host, cors, api, type })
         }
       })
     )
