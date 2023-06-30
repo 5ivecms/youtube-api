@@ -26,6 +26,10 @@ export class InvidiousEntity {
   @Column({ type: 'boolean', default: true })
   public readonly useProxy: boolean
 
+  @Index()
+  @Column({ type: 'boolean', default: true })
+  public readonly useApi: boolean
+
   @Column({ type: 'int', default: 0 })
   public readonly pingMin: number
 
