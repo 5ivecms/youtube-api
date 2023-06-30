@@ -1,4 +1,4 @@
-import { BadRequestException, HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common'
+import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common'
 import * as cheerio from 'cheerio'
 import * as queryString from 'querystring'
 import axios, { isAxiosError } from 'axios'

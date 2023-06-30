@@ -48,6 +48,10 @@ export class InvidiousEntity {
   public readonly type: string
 
   @Index()
+  @Column({ type: 'boolean', default: false })
+  public readonly ipv6: boolean
+
+  @Index()
   @Column({ type: 'int', default: 0 })
   public readonly index: number
 
