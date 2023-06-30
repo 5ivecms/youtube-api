@@ -15,6 +15,10 @@ export class UpdateHostDto {
 
   @IsBoolean()
   @IsOptional()
+  public readonly ipv6?: boolean
+
+  @IsBoolean()
+  @IsOptional()
   public readonly useRandomUseragent?: boolean
 
   @IsBoolean()

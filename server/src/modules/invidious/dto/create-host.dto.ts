@@ -12,6 +12,10 @@ export class CreateHostDto {
   @IsOptional()
   public readonly api?: boolean
 
+  @IsBoolean()
+  @IsOptional()
+  public readonly ipv6?: boolean
+
   @IsString()
   @IsOptional()
   public readonly type?: string
