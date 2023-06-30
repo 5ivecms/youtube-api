@@ -60,6 +60,11 @@ const columns = [
     header: () => 'Протокол',
     size: 200,
   }),
+  columnHelper.accessor('type', {
+    cell: (info) => info.getValue(),
+    header: () => 'Тип',
+    size: 200,
+  }),
   columnHelper.accessor('isActive', {
     cell: ({ row }) => (
       <Chip
@@ -81,6 +86,7 @@ const filters: DataGridFilterDef<ProxyModel>[] = [
   { name: 'login', placeholder: 'Логин', type: 'text' },
   { name: 'password', placeholder: 'Пароль', type: 'text' },
   { name: 'protocol', placeholder: 'Протокол', type: 'text' },
+  { name: 'type', placeholder: 'Тип', type: 'text' },
   { name: 'isActive', placeholder: 'Активен', type: 'text' },
 ]
 

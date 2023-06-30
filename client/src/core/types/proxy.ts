@@ -6,9 +6,18 @@ export enum ProxyProtocol {
   socks5 = 'socks5',
 }
 
+export enum ProxyType {
+  ipv4 = 'ipv4',
+  ipv6 = 'ipv6',
+}
+
 export type ProxyProtocolType = keyof typeof ProxyProtocol
 
 export const protocols: ProxyProtocolType[] = ['http', 'https', 'socks4', 'socks5']
+
+export type ProxyTypeType = keyof typeof ProxyType
+
+export const proxyTypes: ProxyTypeType[] = ['ipv4', 'ipv6']
 
 export interface ProxyModel {
   id: number
@@ -17,7 +26,8 @@ export interface ProxyModel {
   login: string
   password: string
   port: number
-  protocol: string
+  protocol: ProxyProtocolType
+  type: ProxyTypeType
   comment: string
 }
 
@@ -26,7 +36,8 @@ export interface CreateProxyDto {
   login: string
   password: string
   port: number
-  protocol: string
+  protocol: ProxyProtocolType
+  type: ProxyTypeType
   comment?: string
 }
 
@@ -36,7 +47,8 @@ export interface CreateBulkProxyDto {
 
 export type CreateProxyFormFields = {
   list: string
-  protocol: string
+  protocol: ProxyProtocolType
+  type: ProxyTypeType
 }
 
 export type UpdateProxyDto = {
@@ -46,6 +58,7 @@ export type UpdateProxyDto = {
   login: string
   password: string
   port: number
-  protocol: string
+  protocol: ProxyProtocolType
+  type: ProxyTypeType
   comment?: string
 }

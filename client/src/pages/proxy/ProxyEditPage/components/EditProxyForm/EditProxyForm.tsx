@@ -10,7 +10,7 @@ import { FormInput, FormSelect, FormSwitch } from '../../../../../components/for
 import { browseRoutes } from '../../../../../core/config/routes.config'
 import { ProxyService } from '../../../../../core/services/proxy'
 import { ANY } from '../../../../../core/types'
-import { protocols, ProxyModel, UpdateProxyDto } from '../../../../../core/types/proxy'
+import { protocols, ProxyModel, proxyTypes, UpdateProxyDto } from '../../../../../core/types/proxy'
 
 type EditProxyFormProps = {
   proxy: ProxyModel
@@ -23,6 +23,7 @@ const editProxySchema = object({
   password: string().nonempty('Поле не может быть пустым'),
   port: number(),
   protocol: string().nonempty('Поле не может быть пустым'),
+  type: string().nonempty('Поле не может быть пустым'),
   comment: string(),
 })
 
@@ -40,6 +41,7 @@ const EditProxyForm: FC<EditProxyFormProps> = ({ proxy }) => {
       password: proxy.password,
       port: proxy.port,
       protocol: proxy.protocol,
+      type: proxy.type,
       comment: proxy.comment,
     },
     mode: 'onChange',
@@ -83,6 +85,16 @@ const EditProxyForm: FC<EditProxyFormProps> = ({ proxy }) => {
               label="Протокол"
               options={protocols.map((option) => ({ label: option, value: option }))}
               defaultValue={proxy.protocol}
+              fullWidth
+            />
+          </Grid>
+          <Grid xs={12} item>
+            <FormSelect
+              name="type"
+              variant="outlined"
+              label="Тип"
+              options={proxyTypes.map((option) => ({ label: option, value: option }))}
+              defaultValue={proxy.type}
               fullWidth
             />
           </Grid>

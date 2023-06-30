@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Box, Button } from '@mui/material'
 import { useSnackbar } from 'notistack'
-import { FC, useEffect } from 'react'
+import { useEffect } from 'react'
 import { FormProvider, SubmitHandler, useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { object, string } from 'zod'
@@ -10,19 +10,27 @@ import { FormInput, FormSelect } from '../../../../../components/forms'
 import { browseRoutes } from '../../../../../core/config/routes.config'
 import { ProxyService } from '../../../../../core/services/proxy'
 import { ANY } from '../../../../../core/types'
-import { CreateProxyDto, protocols } from '../../../../../core/types/proxy'
+import {
+  CreateProxyDto,
+  protocols,
+  ProxyProtocolType,
+  proxyTypes,
+  ProxyTypeType,
+} from '../../../../../core/types/proxy'
 
 export type CreateProxyFormFields = {
   list: string
-  protocol: string
+  protocol: ProxyProtocolType
+  type: ProxyTypeType
 }
 
 const createProxySchema = object({
   protocol: string().nonempty('Поле не может быть пустым'),
+  type: string().nonempty('Поле не может быть пустым'),
   list: string().nonempty('Поле не может быть пустым'),
 })
 
-const CreateProxiesForm: FC = () => {
+const CreateProxiesForm = () => {
   const navigate = useNavigate()
   const { enqueueSnackbar } = useSnackbar()
   const [createProxies, { isLoading, isError, error, isSuccess }] = ProxyService.useCreateMutation()
@@ -30,7 +38,7 @@ const CreateProxiesForm: FC = () => {
 
   const { handleSubmit } = methods
 
-  const onSubmitHandler: SubmitHandler<CreateProxyFormFields> = ({ list, protocol }) => {
+  const onSubmitHandler: SubmitHandler<CreateProxyFormFields> = ({ list, protocol, type }) => {
     const proxies: CreateProxyDto[] = list
       .split('\n')
       .map((item) => item.trim())
@@ -40,7 +48,7 @@ const CreateProxiesForm: FC = () => {
         const [ipPort, loginPassword] = mainParts.split('@')
         const [ip, port] = ipPort.split(':')
         const [login, password] = loginPassword.split(':')
-        return { ip, login, comment, password, port: Number(port), protocol }
+        return { ip, login, comment, type, password, port: Number(port), protocol }
       })
     createProxies({ proxies })
   }
@@ -70,6 +78,13 @@ const CreateProxiesForm: FC = () => {
           variant="outlined"
           label="Протокол"
           options={protocols.map((option) => ({ label: option, value: option }))}
+          fullWidth
+        />
+        <FormSelect
+          name="type"
+          variant="outlined"
+          label="Тип"
+          options={proxyTypes.map((option) => ({ label: option, value: option }))}
           fullWidth
         />
         <FormInput
