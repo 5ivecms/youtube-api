@@ -23,6 +23,7 @@ const editInvidiousSchema = object({
   isWorkable: boolean(),
   useRandomUseragent: boolean(),
   useProxy: boolean(),
+  ipv6: boolean(),
   comment: string(),
 })
 
@@ -39,6 +40,7 @@ const EditInvidiousForm: FC<EditInvidiousFormProps> = ({ invidious }) => {
       isWorkable: invidious.isWorkable,
       useRandomUseragent: invidious.useRandomUseragent,
       useProxy: invidious.useProxy,
+      ipv6: invidious.ipv6,
       comment: invidious.comment,
     },
     mode: 'onChange',
@@ -87,6 +89,9 @@ const EditInvidiousForm: FC<EditInvidiousFormProps> = ({ invidious }) => {
           </Grid>
           <Grid xs={3} item>
             <FormSwitch label="Прокси" name="useProxy" defaultChecked={invidious.useProxy} />
+          </Grid>
+          <Grid xs={3} item>
+            <FormSwitch label="ipv6" name="ipv6" defaultChecked={invidious.ipv6} />
           </Grid>
         </Grid>
         <FormInput variant="outlined" placeholder="Хост" label="Хост" name="host" type="text" disabled={false} />

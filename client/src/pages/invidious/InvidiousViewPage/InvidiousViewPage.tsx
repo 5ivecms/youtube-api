@@ -34,6 +34,13 @@ const columns: InfoTableColumn[] = [
       return <Chip color={data ? 'success' : 'error'} label={data ? 'Да' : 'Нет'} size="small" />
     },
   },
+  {
+    field: 'ipv6',
+    headerName: 'IPV6',
+    render: (data) => {
+      return <Chip color={data ? 'success' : 'error'} label={data ? 'Да' : 'Нет'} size="small" />
+    },
+  },
   { field: 'comment', headerName: 'Комментарий' },
 ]
 

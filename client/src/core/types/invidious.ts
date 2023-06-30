@@ -30,5 +30,6 @@ export interface UpdateInvidiousDto {
   isWorkable?: boolean
   useRandomUseragent?: boolean
   useProxy?: boolean
+  ipv6?: boolean
   comment?: string
 }
