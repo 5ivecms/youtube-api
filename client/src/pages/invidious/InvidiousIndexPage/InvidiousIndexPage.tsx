@@ -31,6 +31,7 @@ const filters: DataGridFilterDef<InvidiousModel>[] = [
   { name: 'pingMin', placeholder: 'Пинг, мин', type: 'text' },
   { name: 'pingMax', placeholder: 'Пинг, макс', type: 'text' },
   { name: 'pingAvg', placeholder: 'Пинг, ср', type: 'text' },
+  { name: 'api', placeholder: 'API', type: 'text' },
   { name: 'isActive', placeholder: 'Статус', type: 'text' },
   { name: 'isWorkable', placeholder: 'Работает', type: 'text' },
 ]
@@ -99,6 +100,13 @@ const InvidiousIndexPage: FC = () => {
       cell: (info) => info.getValue(),
       header: () => 'Пинг,ср',
       size: 280,
+    }),
+    columnHelper.accessor('api', {
+      cell: ({ row }) => (
+        <Chip color={row.original.api ? 'success' : 'error'} label={row.original.api ? 'Да' : 'Нет'} size="small" />
+      ),
+      header: () => 'API',
+      size: 80,
     }),
     columnHelper.accessor('isActive', {
       cell: ({ row }) => (

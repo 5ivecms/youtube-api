@@ -11,6 +11,9 @@ export interface InvidiousModel {
   pingAvg: number
   pingMax: number
   pingMin: number
+  cors: boolean
+  api: boolean
+  type: string
   comment?: string
 }
 

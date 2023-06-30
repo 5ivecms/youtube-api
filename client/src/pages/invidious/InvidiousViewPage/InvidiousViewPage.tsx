@@ -1,5 +1,5 @@
 import { Delete, Edit } from '@mui/icons-material'
-import { Alert, Box, Button } from '@mui/material'
+import { Alert, Box, Button, Chip } from '@mui/material'
 import { useSnackbar } from 'notistack'
 import { FC, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -20,6 +20,20 @@ const columns: InfoTableColumn[] = [
   { field: 'pingMin', headerName: 'Минимальный пинг' },
   { field: 'pingMax', headerName: 'Максимальный пинг' },
   { field: 'pingAvg', headerName: 'Средний пинг' },
+  {
+    field: 'api',
+    headerName: 'API',
+    render: (data) => {
+      return <Chip color={data ? 'success' : 'error'} label={data ? 'Да' : 'Нет'} size="small" />
+    },
+  },
+  {
+    field: 'cors',
+    headerName: 'CORS',
+    render: (data) => {
+      return <Chip color={data ? 'success' : 'error'} label={data ? 'Да' : 'Нет'} size="small" />
+    },
+  },
   { field: 'comment', headerName: 'Комментарий' },
 ]
 
