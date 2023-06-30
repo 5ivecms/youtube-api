@@ -13,6 +13,7 @@ export interface InvidiousModel {
   pingMin: number
   cors: boolean
   api: boolean
+  ipv6: boolean
   type: string
   comment?: string
 }
