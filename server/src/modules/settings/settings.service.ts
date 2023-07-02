@@ -10,6 +10,7 @@ import { CreateSettingsDto, UpdateBulkSettings, UpdateSettingsDto } from './dto'
 import { InvidiousSettings } from './settings.types'
 import { SETTINGS_CACHE_KEY } from './settings.constants'
 import { CacheConfig } from '../../config/cache.config'
+import { stringToBoolean } from '../../utils'
 
 @Injectable()
 export class SettingsService {
@@ -62,16 +63,19 @@ export class SettingsService {
     }
 
     const settings = await this.settingsRepository.findBy({ section: 'invidious' })
+
     const proxySettings = settings.find((setting) => setting.option === 'proxy')
     const timeoutSettings = settings.find((setting) => setting.option === 'timeout')
+    const apiSettings = settings.find((setting) => setting.option === 'api')
+
     const settingsObj = {
-      proxy: Boolean(proxySettings.value),
+      proxy: stringToBoolean(proxySettings.value),
       timeout: Number(timeoutSettings.value),
+      api: stringToBoolean(apiSettings.value),
     }
 
     const { settingsCacheTtl } = this.configService.get<CacheConfig>('cache')
     await this.cacheManager.set(SETTINGS_CACHE_KEY, settingsObj, settingsCacheTtl)
-
     return settingsObj
   }
 

@@ -8,4 +8,5 @@ export enum SettingsEnum {
 export type InvidiousSettings = {
   proxy: boolean
   timeout: number
+  api: boolean
 }

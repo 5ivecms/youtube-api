@@ -10,6 +10,13 @@ export const invidiousBaseSettings: Omit<SettingsEntity, 'id'>[] = [
     label: 'Использовать прокси',
   },
   {
+    option: 'api',
+    section: 'invidious',
+    type: SettingsEnum.BOOLEAN,
+    value: '0',
+    label: 'Использовать API',
+  },
+  {
     option: 'timeout',
     section: 'invidious',
     type: SettingsEnum.INTEGER,

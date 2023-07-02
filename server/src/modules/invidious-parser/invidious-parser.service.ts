@@ -4,17 +4,28 @@ import * as queryString from 'querystring'
 import axios, { isAxiosError } from 'axios'
 
 import { createInvidiousAxios } from './invidious.axios'
-import { NavigationPages, SearchResult, VideoItem, VIDEO_SORT_VALUES } from './invidious.types'
+import {
+  NavigationPages,
+  SearchResult,
+  VideoItem,
+  VIDEO_SORT_VALUES,
+  VideoReponse,
+  InvidiousApiResponse,
+  InvidiousTrendsApiResponse,
+  InvidiousPopularApiResponse,
+  InvidiousSearchApiResponse,
+} from './invidious.types'
 import { GetVideoDto, SearchVideoDto } from './dto'
 import { InvidiousService } from '../invidious/invidious.service'
 import { InvidiousEntity } from '../invidious/invidious.entity'
 import { UseragentService } from '../useragent/useragent.service'
-import { DEFAULT_USERAGENT } from './constants'
+import { DEFAULT_USERAGENT, INVIDIOUS_API_URL, INVIDIOUS_SITE_URL } from './constants'
 import { SafeWordService } from '../safe-word/safe-word.service'
 import { SettingsService } from '../settings/settings.service'
 import { ProxyService } from '../proxy/proxy.service'
 import { ProxyEntity } from '../proxy/proxy.entity'
 import { InvidiousSettings } from '../settings/settings.types'
+import { formatTime } from 'src/utils'
 
 @Injectable()
 export class InvidiousParserService {
@@ -28,28 +39,29 @@ export class InvidiousParserService {
 
   public async getVideo(dto: GetVideoDto) {
     let result = null
+    const settings = await this.settingsService.getInvidiousSettings()
 
     while (!result) {
       const invidious = await this.invidiousService.getRandomHost()
-
       if (!invidious) {
         throw new BadRequestException('Нет invidious хостов')
       }
 
-      const settings = await this.settingsService.getInvidiousSettings()
+      const useApi = settings.api && invidious.api && invidious.useApi
       const useragent = await this.getUseragent(invidious)
       const proxy = await this.getProxy(invidious, settings)
       const axiosInstance = createInvidiousAxios(invidious.host, useragent, settings.timeout, proxy)
 
       try {
-        const { data, status } = await axiosInstance.get('/watch', {
-          params: { v: dto.youtubeId },
-        })
-        const isWorkable = status === HttpStatus.OK
-        if (!isWorkable) {
-          await this.invidiousService.update(invidious.id, { isWorkable })
+        if (useApi) {
+          const { data, status } = await axiosInstance.get<InvidiousApiResponse>(INVIDIOUS_API_URL.video(dto.youtubeId))
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.prepareInvidiousApiVideoResponse(data)
+        } else {
+          const { data, status } = await axiosInstance.get(INVIDIOUS_SITE_URL.video(dto.youtubeId))
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.parseVideo(data, dto.youtubeId)
         }
-        result = { id: dto.youtubeId, ...this.parseVideo(data) }
       } catch (e) {
         if (isAxiosError(e)) {
           await this.onErrorHost(invidious, e)
@@ -61,27 +73,30 @@ export class InvidiousParserService {
   }
 
   public async getTrending() {
-    let result = null
+    let result: VideoItem[] | null = null
+    const settings = await this.settingsService.getInvidiousSettings()
 
     while (!result) {
       const invidious = await this.invidiousService.getRandomHost()
-
       if (!invidious) {
         throw new BadRequestException('Нет invidious хостов')
       }
 
-      const settings = await this.settingsService.getInvidiousSettings()
-      const proxy = await this.getProxy(invidious, settings)
+      const useApi = settings.api && invidious.api && invidious.useApi
       const useragent = await this.getUseragent(invidious)
+      const proxy = await this.getProxy(invidious, settings)
       const axiosInstance = createInvidiousAxios(invidious.host, useragent, settings.timeout, proxy)
 
       try {
-        const { data, status } = await axiosInstance.get('/feed/trending', { timeout: 5000 })
-        const isWorkable = status === HttpStatus.OK
-        if (!isWorkable) {
-          await this.invidiousService.update(invidious.id, { isWorkable })
+        if (useApi) {
+          const { data, status } = await axiosInstance.get<InvidiousTrendsApiResponse>(INVIDIOUS_API_URL.trends())
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.prepareInvidiousApiTrendsResponse(data)
+        } else {
+          const { data, status } = await axiosInstance.get(INVIDIOUS_SITE_URL.trends())
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.parseVideos(data)
         }
-        result = this.parseVideos(data)
       } catch (e) {
         if (isAxiosError(e)) {
           await this.onErrorHost(invidious, e)
@@ -93,28 +108,30 @@ export class InvidiousParserService {
   }
 
   public async getPopular() {
-    let result = null
+    let result: VideoItem[] | null = null
+    const settings = await this.settingsService.getInvidiousSettings()
 
     while (!result) {
       const invidious = await this.invidiousService.getRandomHost()
-
       if (!invidious) {
         throw new BadRequestException('Нет invidious хостов')
       }
 
-      const settings = await this.settingsService.getInvidiousSettings()
+      const useApi = settings.api && invidious.api && invidious.useApi
       const proxy = await this.getProxy(invidious, settings)
       const useragent = await this.getUseragent(invidious)
       const axiosInstance = createInvidiousAxios(invidious.host, useragent, settings.timeout, proxy)
 
       try {
-        const { data, status } = await axiosInstance.get('/feed/popular')
-        const isWorkable = status === HttpStatus.OK
-        if (!isWorkable) {
-          await this.invidiousService.update(invidious.id, { isWorkable })
+        if (useApi) {
+          const { data, status } = await axiosInstance.get<InvidiousPopularApiResponse>(INVIDIOUS_API_URL.popular())
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.prepareInvidiousApiPopularResponse(data)
+        } else {
+          const { data, status } = await axiosInstance.get(INVIDIOUS_SITE_URL.popular())
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.parseVideos(data)
         }
-
-        result = this.parseVideos(data)
       } catch (e) {
         if (isAxiosError(e)) {
           await this.onErrorHost(invidious, e)
@@ -126,7 +143,8 @@ export class InvidiousParserService {
   }
 
   public async search(dto: SearchVideoDto): Promise<SearchResult> {
-    let result = null
+    let result: SearchResult | null = null
+    const settings = await this.settingsService.getInvidiousSettings()
 
     while (!result) {
       const page = Number(dto.page || 1)
@@ -146,24 +164,30 @@ export class InvidiousParserService {
       }
 
       const invidious = await this.invidiousService.getRandomHost()
-
       if (!invidious) {
         throw new BadRequestException('Нет invidious хостов')
       }
 
-      const settings = await this.settingsService.getInvidiousSettings()
+      const useApi = settings.api && invidious.api && invidious.useApi
       const proxy = await this.getProxy(invidious, settings)
       const useragent = await this.getUseragent(invidious)
       const axiosInstance = createInvidiousAxios(invidious.host, useragent, settings.timeout, proxy)
 
       try {
-        const { data, status } = await axiosInstance.get('/search', { params: { ...dto, page, region, sort } })
-        const isWorkable = status === HttpStatus.OK
-        if (!isWorkable) {
-          await this.invidiousService.update(invidious.id, { isWorkable })
+        if (useApi) {
+          const { data, status } = await axiosInstance.get(INVIDIOUS_API_URL.search(), {
+            params: { q: dto.q, type: 'video', region: 'RU' },
+          })
+          await this.updateInvidiousStatus(invidious, status)
+          result = this.prepareInvidiousApiSearchResponse(data)
+        } else {
+          const { data, status } = await axiosInstance.get(INVIDIOUS_SITE_URL.search(), {
+            params: { ...dto, page, region, sort },
+          })
+          await this.updateInvidiousStatus(invidious, status)
+          const pages = this.parsePagination(data)
+          result = { items: this.parseVideos(data), pages: { ...pages, page } }
         }
-        const pages = this.parsePagination(data)
-        result = { items: this.parseVideos(data), pages: { ...pages, page } }
       } catch (e) {
         if (isAxiosError(e)) {
           await this.onErrorHost(invidious, e)
@@ -174,7 +198,7 @@ export class InvidiousParserService {
     return result
   }
 
-  private parseVideo(html: string) {
+  private parseVideo(html: string, videoId: string): VideoReponse {
     const $ = cheerio.load(html)
 
     const title = $('h1').text().trim()
@@ -183,7 +207,7 @@ export class InvidiousParserService {
     const likes = Number($('#likes').text().replace(',', '').trim())
     const related = this.parseRelatedVideos($)
 
-    return { title, description, views, likes, related }
+    return { id: videoId, title, description, views, likes, related }
   }
 
   private parseRelatedVideos($: any): VideoItem[] {
@@ -201,16 +225,11 @@ export class InvidiousParserService {
           return
         }
 
-        const cardFooter = $(card).next('h5.pure-g')
-        const cardFooterLeft = $(cardFooter).first()
-
         const videoId = cardHref.replace('/watch?v=', '').replace('&listen=false', '').trim()
         const title = $(card).children('p').text().trim()
         const duration = $(card).find('.length').text().trim()
-        const channelName = $(cardFooterLeft).find('a').text().trim()
-        const channelId = $(cardFooterLeft).find('a').attr('href').replace('/channel/', '').trim()
 
-        relatedVideos.push({ videoId, title, duration, channel: { title: channelName, channelId } })
+        relatedVideos.push({ videoId, title, duration })
       } catch {
         return
       }
@@ -227,25 +246,21 @@ export class InvidiousParserService {
     Object.keys(videoCards).forEach((key) => {
       try {
         if (videoCards[key].type !== 'tag') {
-          return
+          return []
         }
 
         const cardHref = $(videoCards[key]).children('a').attr('href')
         if (cardHref.indexOf('watch') == -1) {
-          return
+          return []
         }
 
         const videoId = cardHref.replace('/watch?v=', '').trim()
         const title = $(videoCards[key]).find('> a > p[dir="auto"]').text().trim()
         const duration = $(videoCards[key]).find('.thumbnail .length').text().trim()
 
-        const channelNameNode = $(videoCards[key]).find('.channel-name')
-        const channelId = channelNameNode.parent('a').attr('href').replace('/channel/', '').trim()
-        const channelName = channelNameNode.text().trim()
-
-        videos.push({ videoId, title, duration, channel: { title: channelName, channelId } })
+        videos.push({ videoId, title, duration })
       } catch {
-        return
+        return []
       }
     })
 
@@ -353,5 +368,59 @@ export class InvidiousParserService {
 
   private async getProxy(invidious: InvidiousEntity, settings: InvidiousSettings): Promise<ProxyEntity | undefined> {
     return settings.proxy && invidious.useProxy ? await this.proxyService.getRandomProxy() : undefined
+  }
+
+  private async updateInvidiousStatus(invidious: InvidiousEntity, status: number) {
+    const isWorkable = status === HttpStatus.OK
+    if (!isWorkable) {
+      await this.invidiousService.update(invidious.id, { isWorkable })
+    }
+  }
+
+  private prepareInvidiousApiVideoResponse(response: InvidiousApiResponse): VideoReponse {
+    const related = response.recommendedVideos.map(({ lengthSeconds, title, videoId }) => ({
+      title,
+      videoId,
+      duration: formatTime(lengthSeconds),
+    }))
+    return {
+      id: response.videoId,
+      title: response.title,
+      description: response.description,
+      views: response.viewCount,
+      likes: response.likeCount,
+      related,
+    }
+  }
+
+  private prepareInvidiousApiTrendsResponse(response: InvidiousTrendsApiResponse): VideoItem[] {
+    return response.map((data) => ({
+      duration: formatTime(data.lengthSeconds),
+      title: data.title,
+      videoId: data.videoId,
+    }))
+  }
+
+  private prepareInvidiousApiPopularResponse(response: InvidiousPopularApiResponse): VideoItem[] {
+    return response.map((data) => ({
+      duration: formatTime(data.lengthSeconds),
+      title: data.title,
+      videoId: data.videoId,
+    }))
+  }
+
+  private prepareInvidiousApiSearchResponse(response: InvidiousSearchApiResponse): SearchResult {
+    return {
+      items: response.map((data) => ({
+        duration: formatTime(data.lengthSeconds),
+        title: data.title,
+        videoId: data.videoId,
+      })),
+      pages: {
+        nextPage: 1,
+        prevPage: 1,
+        page: 1,
+      },
+    }
   }
 }
