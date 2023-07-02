@@ -3,7 +3,7 @@ version: '3.9'
 services:
   nginx:
     ports:
-      - "81:81"
+      - "82:82"
     volumes:
       - ./nginx/nginx.conf.development:/etc/nginx/conf.d/nginx.conf
 
