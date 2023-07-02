@@ -32,7 +32,7 @@ const filters: DataGridFilterDef<InvidiousModel>[] = [
   { name: 'pingMax', placeholder: 'Пинг, макс', type: 'text' },
   { name: 'pingAvg', placeholder: 'Пинг, ср', type: 'text' },
   { name: 'api', placeholder: 'API', type: 'text' },
-  { name: 'ipv6', placeholder: 'IPV6', type: 'text' },
+  // { name: 'ipv6', placeholder: 'IPV6', type: 'text' },
   { name: 'isActive', placeholder: 'Статус', type: 'text' },
   { name: 'isWorkable', placeholder: 'Работает', type: 'text' },
 ]
@@ -109,13 +109,13 @@ const InvidiousIndexPage: FC = () => {
       header: () => 'API',
       size: 80,
     }),
-    columnHelper.accessor('ipv6', {
+    /* columnHelper.accessor('ipv6', {
       cell: ({ row }) => (
         <Chip color={row.original.ipv6 ? 'success' : 'error'} label={row.original.ipv6 ? 'Да' : 'Нет'} size="small" />
       ),
       header: () => 'IPV6',
       size: 80,
-    }),
+    }), */
     columnHelper.accessor('isActive', {
       cell: ({ row }) => (
         <Chip
