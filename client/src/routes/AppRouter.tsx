@@ -12,6 +12,12 @@ import { SafeWordsCreatePage, SafeWordsEditPage, SafeWordsIndexPage, SafeWordsVi
 import { SettingsViewPage } from '../pages/settings'
 import { UserProfile } from '../pages/user'
 import { UseragentCreatePage, UseragentEditPage, UseragentIndexPage, UseragentViewPage } from '../pages/useragent'
+import {
+  YoutubeApiKeyCreatePage,
+  YoutubeApiKeyEditPage,
+  YoutubeApiKeyIndexPage,
+  YoutubeApiKeyViewPage,
+} from '../pages/youtube-apikey'
 import PrivateRoute from './PrivateRoute'
 
 const AppRouter: FC = () => {
@@ -100,6 +106,19 @@ const AppRouter: FC = () => {
       </Route>
       <Route element={<PrivateRoute />}>
         <Route element={<ApiKeyEditPage />} path={browseRoutes.apiKey.edit()} />
+      </Route>
+
+      <Route element={<PrivateRoute />}>
+        <Route element={<YoutubeApiKeyIndexPage />} path={browseRoutes.youtubeApiey.index()} />
+      </Route>
+      <Route element={<PrivateRoute />}>
+        <Route element={<YoutubeApiKeyCreatePage />} path={browseRoutes.youtubeApiey.create()} />
+      </Route>
+      <Route element={<PrivateRoute />}>
+        <Route element={<YoutubeApiKeyViewPage />} path={browseRoutes.youtubeApiey.view()} />
+      </Route>
+      <Route element={<PrivateRoute />}>
+        <Route element={<YoutubeApiKeyEditPage />} path={browseRoutes.youtubeApiey.edit()} />
       </Route>
 
       <Route element={<PrivateRoute />}>

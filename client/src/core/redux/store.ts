@@ -13,6 +13,7 @@ import { ProxyService } from '../services/proxy'
 import { SafeWordsService } from '../services/safeWords'
 import { SettingsService } from '../services/settings'
 import { UseragentService } from '../services/useragent'
+import { YoutubeApikeyService } from '../services/youtubeApikey'
 import auth from './slices/auth/slice'
 
 export const store = configureStore({
@@ -27,6 +28,7 @@ export const store = configureStore({
     [SettingsService.reducerPath]: SettingsService.reducer,
     [DomainService.reducerPath]: DomainService.reducer,
     [ApiKeyService.reducerPath]: ApiKeyService.reducer,
+    [YoutubeApikeyService.reducerPath]: YoutubeApikeyService.reducer,
     auth,
   },
   middleware: (getDefaultMiddleware) => [
@@ -40,6 +42,7 @@ export const store = configureStore({
     SettingsService.middleware,
     DomainService.middleware,
     ApiKeyService.middleware,
+    YoutubeApikeyService.middleware,
   ],
 })
 

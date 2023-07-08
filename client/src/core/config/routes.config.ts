@@ -33,6 +33,13 @@ export const browseRoutes = {
     view: (id: number | string = ':id'): string => `/api-key/view/${id}`,
   },
 
+  youtubeApiey: {
+    create: (): string => `/youtube-apikey/create`,
+    edit: (id: number | string = ':id'): string => `/youtube-apikey/edit/${id}`,
+    index: (): string => `/youtube-apikey`,
+    view: (id: number | string = ':id'): string => `/youtube-apikey/view/${id}`,
+  },
+
   safeWords: {
     create: (): string => `/safe-word/create`,
     edit: (id: number | string = ':id'): string => `/safe-word/edit/${id}`,

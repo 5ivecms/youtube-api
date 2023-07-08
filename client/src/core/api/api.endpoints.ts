@@ -78,4 +78,16 @@ export const apiRoutes = {
     search: (): string => '/api-key/search',
     update: (id: number): string => `/api-key/${id}`,
   },
+
+  youtubeApikey: {
+    clear: (): string => `/youtube/apikey/clear`,
+    create: (): string => `/youtube/apikey`,
+    createBulk: (): string => `/youtube/apikey/create-bulk`,
+    delete: (id: number): string => `/youtube/apikey/${id}`,
+    deleteBulk: (): string => `/youtube/apikey/delete-bulk`,
+    findAll: (): string => '/youtube/apikey',
+    findOne: (id: number): string => `/youtube/apikey/${id}`,
+    search: (): string => '/youtube/apikey/search',
+    update: (id: number): string => `/youtube/apikey/${id}`,
+  },
 }
