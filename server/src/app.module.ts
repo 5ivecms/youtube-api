@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import * as Joi from 'joi'
+import { redisStore } from 'cache-manager-redis-yet'
+import { CacheModule } from '@nestjs/cache-manager'
+import { RedisClientOptions } from 'redis'
 
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
@@ -16,9 +19,10 @@ import { UserModule } from './modules/user/user.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DomainModule } from './modules/domain/domain.module'
 import { ApiKeyModule } from './modules/api-key/api-key.module'
+import { YoutubeModule } from './modules/youtube/youtube.module'
 
 const ENV = process.env.NODE_ENV ?? 'development'
-
+// asd
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -51,6 +55,11 @@ const ENV = process.env.NODE_ENV ?? 'development'
         USERAGENTS_CACHE_TTL: Joi.number().default(60000),
       }),
     }),
+    CacheModule.register<RedisClientOptions>({
+      isGlobal: true,
+      store: redisStore,
+      url: 'redis://redis:6379',
+    }),
     DatabaseModule,
     InvidiousModule,
     ProxyModule,
@@ -62,6 +71,7 @@ const ENV = process.env.NODE_ENV ?? 'development'
     AuthModule,
     DomainModule,
     ApiKeyModule,
+    YoutubeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

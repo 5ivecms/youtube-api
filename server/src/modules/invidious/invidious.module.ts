@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
-import { CacheModule } from '@nestjs/cache-manager'
 import { ConfigModule } from '@nestjs/config'
 
 import { InvidiousController } from './invidious.controller'
@@ -10,7 +9,7 @@ import { InvidiousLogsEntity } from './invidious-logs.entity'
 import { InvidiousLogsService } from './invidious-logs.service'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([InvidiousEntity, InvidiousLogsEntity]), CacheModule.register(), ConfigModule],
+  imports: [TypeOrmModule.forFeature([InvidiousEntity, InvidiousLogsEntity]), ConfigModule],
   controllers: [InvidiousController],
   exports: [InvidiousService, InvidiousLogsService],
   providers: [InvidiousService, InvidiousLogsService],

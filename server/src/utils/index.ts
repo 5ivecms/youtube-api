@@ -1,3 +1,5 @@
+import { duration } from 'moment'
+
 export const isNumeric = (num: any) => !isNaN(num)
 
 export const getRandomInt = (min: number, max: number): number => {
@@ -40,4 +42,20 @@ export const formatTime = (seconds: number): string => {
   }
 
   return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`
+}
+
+const addLeadingZero = (value: number) => value.toString().padStart(2, '0')
+
+export const convertTimeToFormat = (time: string) => {
+  const mDuration = duration(time)
+
+  const hours = mDuration.hours()
+  const minutes = mDuration.minutes()
+  const seconds = mDuration.seconds()
+
+  if (hours === 0) {
+    return `${addLeadingZero(minutes)}:${addLeadingZero(seconds)}`
+  }
+
+  return `${addLeadingZero(hours)}:${addLeadingZero(minutes)}:${addLeadingZero(seconds)}`
 }

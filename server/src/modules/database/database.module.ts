@@ -11,6 +11,7 @@ import { SettingsEntity } from '../settings/settings.entity'
 import { User } from '../user/entities/user.entity'
 import { DomainEntity } from '../domain/domain.entity'
 import { ApiKeyEntity } from '../api-key/api-key.entity'
+import { YoutubeApikey } from '../youtube/youtube-apikey.entity'
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ApiKeyEntity } from '../api-key/api-key.entity'
           User,
           DomainEntity,
           ApiKeyEntity,
+          YoutubeApikey,
         ],
         synchronize: true,
       }),

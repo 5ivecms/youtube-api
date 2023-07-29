@@ -36,12 +36,12 @@ const columns = [
   }),
   columnHelper.accessor('currentUsage', {
     cell: (info) => info.getValue(),
-    header: () => 'Текущее использование',
+    header: () => 'Израсходовано',
     size: 2000,
   }),
   columnHelper.accessor('dailyLimit', {
     cell: (info) => info.getValue(),
-    header: () => 'Дневная квота',
+    header: () => 'Квота',
     size: 2000,
   }),
   columnHelper.accessor('comment', {
@@ -49,15 +49,20 @@ const columns = [
     header: () => 'Комментарий',
     size: 2000,
   }),
-  columnHelper.accessor('hasError', {
+  columnHelper.accessor('error', {
+    cell: (info) => info.getValue(),
+    header: () => 'Ошибка',
+    size: 2000,
+  }),
+  columnHelper.accessor('isActive', {
     cell: ({ row }) => (
       <Chip
-        color={row.original.hasError ? 'error' : 'success'}
-        label={row.original.hasError ? 'Да' : 'Нет'}
+        color={row.original.isActive ? 'success' : 'error'}
+        label={row.original.isActive ? 'Да' : 'Нет'}
         size="small"
       />
     ),
-    header: () => 'Ошибка',
+    header: () => 'Активен',
     size: 2000,
   }),
 ]
@@ -67,8 +72,9 @@ const filters: DataGridFilterDef<YoutubeApikeyModel>[] = [
   { name: 'apikey', placeholder: 'ApiKey', type: 'text' },
   { name: 'currentUsage', placeholder: 'Текущее использование', type: 'text' },
   { name: 'dailyLimit', placeholder: 'Дневной лимит', type: 'text' },
-  { name: 'hasError', placeholder: 'Ошибка', type: 'text' },
   { name: 'comment', placeholder: 'Комментарий', type: 'text' },
+  { name: 'error', placeholder: 'Ошибка', type: 'text' },
+  { name: 'isActive', placeholder: 'Активен', type: 'text' },
 ]
 
 const YoutubeApiKeyIndexPage = () => {

@@ -27,10 +27,10 @@ export const browseRoutes = {
   },
 
   apiKey: {
-    create: (): string => `/api-key/create`,
-    edit: (id: number | string = ':id'): string => `/api-key/edit/${id}`,
-    index: (): string => `/api-key`,
-    view: (id: number | string = ':id'): string => `/api-key/view/${id}`,
+    create: (): string => `/access-keys/create`,
+    edit: (id: number | string = ':id'): string => `/access-keys/edit/${id}`,
+    index: (): string => `/access-keys`,
+    view: (id: number | string = ':id'): string => `/access-keys/view/${id}`,
   },
 
   youtubeApiey: {

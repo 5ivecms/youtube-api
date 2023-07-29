@@ -3,7 +3,8 @@ export interface YoutubeApikeyModel {
   id: number
   currentUsage: number
   dailyLimit: number
-  hasError: boolean
+  error: string
+  isActive: boolean
   comment: string
 }
 
