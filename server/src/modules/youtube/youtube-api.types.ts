@@ -22,6 +22,7 @@ export type Comment = {
   author: string
   avatar: string
   publishedAt: Date
+  timeAgo: string
 }
 
 type VideoCategory = {

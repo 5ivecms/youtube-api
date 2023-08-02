@@ -60,7 +60,7 @@ export class YoutubeApiService {
       try {
         const response = await axios.get<SearchResponse>(YTApiEndpoints.search, {
           params: {
-            part: 'snippet,contentDetails,statistics',
+            part: 'snippet',
             maxResults: '50',
             regionCode: 'RU',
             type: 'video',
@@ -99,11 +99,11 @@ export class YoutubeApiService {
       description: item.snippet.description,
       channelId: item.snippet.channelId,
       channelTitle: item.snippet.channelTitle,
-      duration: item.contentDetails.duration,
-      readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+      duration: '',
+      readabilityDuration: '',
       publishedAt: item.snippet.publishedAt,
       timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-      views: Number(item.statistics.viewCount),
+      views: 0,
     }))
 
     await this.cacheService.set(redisCacheKeys.search(dto.q), videos, 86400000)
@@ -522,6 +522,7 @@ export class YoutubeApiService {
       author: item.snippet.topLevelComment.snippet.authorDisplayName,
       avatar: item.snippet.topLevelComment.snippet.authorProfileImageUrl,
       publishedAt: item.snippet.topLevelComment.snippet.publishedAt,
+      timeAgo: format(new Date(item.snippet.topLevelComment.snippet.publishedAt), 'ru'),
     }))
 
     await this.cacheService.set(redisCacheKeys.comments(dto.videoId), comments, 86400000)
