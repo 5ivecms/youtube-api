@@ -5,8 +5,6 @@ type AuthLayoutProps = {
   children: ReactElement
 }
 
-const AuthLayout: FC<AuthLayoutProps> = ({ children }) => {
-  return <Box>{children}</Box>
-}
+const AuthLayout: FC<AuthLayoutProps> = ({ children }) => <Box>{children}</Box>
 
 export default AuthLayout

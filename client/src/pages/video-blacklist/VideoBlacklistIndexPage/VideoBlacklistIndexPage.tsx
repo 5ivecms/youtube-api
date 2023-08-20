@@ -1,11 +1,11 @@
 import { Box, Button } from '@mui/material'
 import { createColumnHelper } from '@tanstack/react-table'
 import { useSnackbar } from 'notistack'
-import { FC, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { DeleteDialog } from '../../../components/common'
 import { DataGrid } from '../../../components/common/DataGrid'
-import type {
+import {
   DataGridFilterDef,
   FilterOptions,
   OrderOptions,
@@ -14,14 +14,14 @@ import type {
 import { getRelations } from '../../../components/common/DataGrid/utils'
 import { AddButton, PageHeader } from '../../../components/ui'
 import { browseRoutes } from '../../../core/config/routes.config'
-import { SafeWordsService } from '../../../core/services/safeWords'
+import { VideoBlacklistService } from '../../../core/services/video-blacklist'
 import { ANY } from '../../../core/types'
-import type { SafeWordModel } from '../../../core/types/safeWords'
 import { Order, SearchQueryParams } from '../../../core/types/search'
+import { VideoBlacklistModel } from '../../../core/types/video-blacklist'
 import { AdminLayout } from '../../../layouts'
-import { actionButtons } from './SafeWordsIndexPage.styles'
+import { actionButtons } from './VideoBlacklistIndexPage.styles'
 
-const columnHelper = createColumnHelper<SafeWordModel>()
+const columnHelper = createColumnHelper<VideoBlacklistModel>()
 
 const columns = [
   columnHelper.accessor('id', {
@@ -30,44 +30,44 @@ const columns = [
     minSize: 200,
     size: 200,
   }),
-  columnHelper.accessor('phrase', {
+  columnHelper.accessor('videoId', {
     cell: (info) => info.getValue(),
-    header: () => 'Название',
+    header: () => 'VideoId',
     size: 2000,
   }),
 ]
 
-const filters: DataGridFilterDef<SafeWordModel>[] = [
+const filters: DataGridFilterDef<VideoBlacklistModel>[] = [
   { name: 'id', placeholder: 'id', type: 'text' },
-  { name: 'phrase', placeholder: 'Фраза', type: 'text' },
+  { name: 'videoId', placeholder: 'VideoId', type: 'text' },
 ]
 
-const SafeWordsIndexPage: FC = () => {
+const VideoBlacklistIndexPage = () => {
   const { enqueueSnackbar } = useSnackbar()
   const relations = getRelations(filters)
 
-  const [params, setParams] = useState<SearchQueryParams<SafeWordModel>>({ relations })
+  const [params, setParams] = useState<SearchQueryParams<VideoBlacklistModel>>({ relations })
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false)
 
-  const safeWordsSearchQuery = SafeWordsService.useSearchQuery(params)
-  const [deleteSafeWord, safeWordDeleteQuery] = SafeWordsService.useDeleteMutation()
-  const [deleteBulkSafeWord, safeWordDeleteBulkQuery] = SafeWordsService.useDeleteBulkMutation()
-  const [clearSafeWord, safeWordClearQuery] = SafeWordsService.useClearMutation()
+  const videoBlacklistSearchQuery = VideoBlacklistService.useSearchQuery(params)
+  const [deleteVideoBlacklist, VideoBlacklistDeleteQuery] = VideoBlacklistService.useDeleteMutation()
+  const [deleteBulkVideoBlacklist, VideoBlacklistDeleteBulkQuery] = VideoBlacklistService.useDeleteBulkMutation()
+  const [clearVideoBlacklist, VideoBlacklistClearQuery] = VideoBlacklistService.useClearMutation()
 
-  const items = safeWordsSearchQuery?.data?.items ?? []
+  const items = videoBlacklistSearchQuery?.data?.items ?? []
 
   const tableIsLoading =
-    safeWordsSearchQuery.isFetching ||
-    safeWordDeleteQuery.isLoading ||
-    safeWordDeleteBulkQuery.isLoading ||
-    safeWordClearQuery.isLoading
+    videoBlacklistSearchQuery.isFetching ||
+    VideoBlacklistDeleteQuery.isLoading ||
+    VideoBlacklistDeleteBulkQuery.isLoading ||
+    VideoBlacklistClearQuery.isLoading
 
   const handleDelete = (id: number): void => {
-    deleteSafeWord(Number(id))
+    deleteVideoBlacklist(Number(id))
   }
 
   const handleDeleteMany = (ids: number[]): void => {
-    deleteBulkSafeWord(ids.map(Number))
+    deleteBulkVideoBlacklist(ids.map(Number))
   }
 
   const handleDeleteAll = (): void => {
@@ -76,7 +76,7 @@ const SafeWordsIndexPage: FC = () => {
 
   const handleConfirmDeleteAll = (): void => {
     setShowDeleteDialog(false)
-    clearSafeWord()
+    clearVideoBlacklist()
   }
 
   const onCloseDeleteDialog = () => {
@@ -91,11 +91,11 @@ const SafeWordsIndexPage: FC = () => {
     setParams((prevParams) => ({ ...prevParams, order }))
   }
 
-  const onChangeOrderBy = (orderBy: keyof SafeWordModel) => {
+  const onChangeOrderBy = (orderBy: keyof VideoBlacklistModel) => {
     setParams((prevParams) => ({ ...prevParams, orderBy }))
   }
 
-  const onChangeFilter = (filter: Record<keyof SafeWordModel, string>) => {
+  const onChangeFilter = (filter: Record<keyof VideoBlacklistModel, string>) => {
     setParams((prevParams) => {
       const { order, orderBy, page: prevPage, relations: prevRelations } = prevParams
       return {
@@ -109,51 +109,51 @@ const SafeWordsIndexPage: FC = () => {
   }
 
   useEffect(() => {
-    if (safeWordClearQuery.isSuccess) {
+    if (VideoBlacklistClearQuery.isSuccess) {
       enqueueSnackbar('Все стоп-слова успешно удалены', {
         variant: 'success',
       })
       return
     }
-    if (safeWordClearQuery.isError) {
-      enqueueSnackbar((safeWordClearQuery.error as ANY).data.message, {
+    if (VideoBlacklistClearQuery.isError) {
+      enqueueSnackbar((VideoBlacklistClearQuery.error as ANY).data.message, {
         variant: 'error',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeWordClearQuery.isLoading])
+  }, [VideoBlacklistClearQuery.isLoading])
 
   useEffect(() => {
-    if (safeWordDeleteQuery.isSuccess) {
+    if (VideoBlacklistDeleteQuery.isSuccess) {
       enqueueSnackbar('Юзерагент успешно удален', {
         variant: 'success',
       })
       return
     }
-    if (safeWordDeleteQuery.isError) {
-      enqueueSnackbar((safeWordDeleteQuery.error as ANY).data.message, {
+    if (VideoBlacklistDeleteQuery.isError) {
+      enqueueSnackbar((VideoBlacklistDeleteQuery.error as ANY).data.message, {
         variant: 'error',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeWordDeleteQuery.isLoading])
+  }, [VideoBlacklistDeleteQuery.isLoading])
 
   useEffect(() => {
-    if (safeWordDeleteBulkQuery.isSuccess) {
+    if (VideoBlacklistDeleteBulkQuery.isSuccess) {
       enqueueSnackbar('Стоп-слова успешно удалены', {
         variant: 'success',
       })
       return
     }
-    if (safeWordDeleteBulkQuery.isError) {
-      enqueueSnackbar((safeWordDeleteBulkQuery.error as ANY).data.message, {
+    if (VideoBlacklistDeleteBulkQuery.isError) {
+      enqueueSnackbar((VideoBlacklistDeleteBulkQuery.error as ANY).data.message, {
         variant: 'error',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeWordDeleteBulkQuery.isLoading])
+  }, [VideoBlacklistDeleteBulkQuery.isLoading])
 
-  const orderOptions: OrderOptions<SafeWordModel> = {
+  const orderOptions: OrderOptions<VideoBlacklistModel> = {
     order: params?.order ?? 'asc',
     orderBy: params?.orderBy ?? 'id',
     onChangeOrder,
@@ -166,24 +166,24 @@ const SafeWordsIndexPage: FC = () => {
   }
 
   const paginationOptions: PaginationOptions = {
-    limit: safeWordsSearchQuery.data?.take ?? 1,
-    page: safeWordsSearchQuery.data?.page ?? 1,
-    total: safeWordsSearchQuery.data?.total ?? 0,
+    limit: videoBlacklistSearchQuery.data?.take ?? 1,
+    page: videoBlacklistSearchQuery.data?.page ?? 1,
+    total: videoBlacklistSearchQuery.data?.total ?? 0,
     onChangePage,
   }
 
   return (
-    <AdminLayout title="Список стоп-слов">
+    <AdminLayout title="Черный список видео">
       <PageHeader
         right={
           <Box sx={actionButtons}>
             <Button color="error" onClick={handleDeleteAll} variant="contained">
               Удалить все
             </Button>
-            <AddButton text="Добавить" to={browseRoutes.safeWords.create()} />
+            <AddButton text="Добавить" to={browseRoutes.videoBlacklist.create()} />
           </Box>
         }
-        title="Стоп-слова"
+        title="Черный список видео"
       />
 
       <DataGrid
@@ -202,11 +202,11 @@ const SafeWordsIndexPage: FC = () => {
         onClose={onCloseDeleteDialog}
         onConfirm={handleConfirmDeleteAll}
         open={showDeleteDialog}
-        text="Точно удалить все стоп слова?"
-        title="Удалить стоп-слова"
+        text="Точно удалить все видео из черного списка?"
+        title="Удалить видео из черного списка"
       />
     </AdminLayout>
   )
 }
 
-export default SafeWordsIndexPage
+export default VideoBlacklistIndexPage

@@ -9,5 +9,6 @@ export const headerMenu: HeaderMenuItem[] = [
   { title: 'API KEYS', url: browseRoutes.apiKey.index() },
   { title: 'YT API KEYS', url: browseRoutes.youtubeApiey.index() },
   { title: 'Прокси', url: browseRoutes.proxy.index() },
+  { title: 'БЛ видео', url: browseRoutes.videoBlacklist.index() },
   { title: 'Настройки', url: browseRoutes.settings.view() },
 ]

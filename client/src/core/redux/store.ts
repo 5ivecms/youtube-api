@@ -10,9 +10,11 @@ import { AuthService } from '../services/auth'
 import { DomainService } from '../services/domain'
 import { InvidiousService } from '../services/invidious'
 import { ProxyService } from '../services/proxy'
+import { QuotaUsageService } from '../services/quotaUsage'
 import { SafeWordsService } from '../services/safeWords'
 import { SettingsService } from '../services/settings'
 import { UseragentService } from '../services/useragent'
+import { VideoBlacklistService } from '../services/video-blacklist'
 import { YoutubeApikeyService } from '../services/youtubeApikey'
 import auth from './slices/auth/slice'
 
@@ -29,6 +31,8 @@ export const store = configureStore({
     [DomainService.reducerPath]: DomainService.reducer,
     [ApiKeyService.reducerPath]: ApiKeyService.reducer,
     [YoutubeApikeyService.reducerPath]: YoutubeApikeyService.reducer,
+    [VideoBlacklistService.reducerPath]: VideoBlacklistService.reducer,
+    [QuotaUsageService.reducerPath]: QuotaUsageService.reducer,
     auth,
   },
   middleware: (getDefaultMiddleware) => [
@@ -43,6 +47,8 @@ export const store = configureStore({
     DomainService.middleware,
     ApiKeyService.middleware,
     YoutubeApikeyService.middleware,
+    VideoBlacklistService.middleware,
+    QuotaUsageService.middleware,
   ],
 })
 

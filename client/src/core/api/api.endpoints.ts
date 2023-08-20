@@ -90,4 +90,22 @@ export const apiRoutes = {
     search: (): string => '/youtube/apikey/search',
     update: (id: number): string => `/youtube/apikey/${id}`,
   },
+
+  videoBlacklist: {
+    clear: (): string => `/video-blacklist/clear`,
+    create: (): string => `/video-blacklist`,
+    createBulk: (): string => `/video-blacklist/create-bulk`,
+    delete: (id: number): string => `/video-blacklist/${id}`,
+    deleteBulk: (): string => `/video-blacklist/delete-bulk`,
+    findAll: (): string => '/video-blacklist',
+    findOne: (id: number): string => `/video-blacklist/${id}`,
+    search: (): string => '/video-blacklist/search',
+    update: (id: number): string => `/video-blacklist/${id}`,
+  },
+
+  quotaUsage: {
+    findAll: (): string => `/quota-usage`,
+    byPeriod: (): string => `/quota-usage/by-period`,
+    clear: (): string => `/quota-usage/clear`,
+  },
 }

@@ -1,47 +1,49 @@
 import { Delete, Edit } from '@mui/icons-material'
 import { Alert, Box, Button } from '@mui/material'
 import { useSnackbar } from 'notistack'
-import { FC, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { DeleteDialog, InfoTable, PageContent } from '../../../components/common'
-import type { InfoTableColumn } from '../../../components/common/InfoTable/info-table.interfaces'
+import { InfoTableColumn } from '../../../components/common/InfoTable/info-table.interfaces'
 import { PageHeader } from '../../../components/ui'
 import { browseRoutes } from '../../../core/config/routes.config'
-import { SafeWordsService } from '../../../core/services/safeWords'
+import { VideoBlacklistService } from '../../../core/services/video-blacklist'
 import { ANY } from '../../../core/types'
 import { AdminLayout } from '../../../layouts'
-import { actionButtons } from './styles'
+import { actionButtons } from './VideoBlacklistView.styles'
 
 const columns: InfoTableColumn[] = [
   { field: 'id', headerName: 'ID' },
-  { field: 'phrase', headerName: 'Фраза' },
+  { field: 'videoId', headerName: 'VideoId' },
 ]
 
-const SafeWordsViewPage: FC = () => {
+const VideoBlacklistViewPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { enqueueSnackbar } = useSnackbar()
 
-  const safeWordFindOneQuery = SafeWordsService.useFindOneQuery(Number(id))
-  const [safeWordDelete, safeWordDeleteQuery] = SafeWordsService.useDeleteMutation()
+  const videoBlacklistFindOneQuery = VideoBlacklistService.useFindOneQuery(Number(id))
+  const [videoBlacklistDelete, videoBlacklistDeleteQuery] = VideoBlacklistService.useDeleteMutation()
 
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false)
+
+  const title = `Видео: ${videoBlacklistFindOneQuery?.data?.videoId}`
 
   const handleDelete = (): void => {
     setShowDeleteDialog(true)
   }
 
-  const confirmDeleteSafeWord = (): void => {
-    if (safeWordFindOneQuery.data?.id) {
-      safeWordDelete(safeWordFindOneQuery.data?.id)
+  const confirmDeletevideoBlacklist = (): void => {
+    if (videoBlacklistFindOneQuery.data?.id) {
+      videoBlacklistDelete(videoBlacklistFindOneQuery.data?.id)
     }
     setShowDeleteDialog(false)
-    navigate(browseRoutes.safeWords.index())
+    navigate(browseRoutes.videoBlacklist.index())
   }
 
   useEffect(() => {
-    if (safeWordDeleteQuery.isSuccess) {
+    if (videoBlacklistDeleteQuery.isSuccess) {
       enqueueSnackbar('Стоп-слово успешно удален', {
         variant: 'success',
       })
@@ -49,25 +51,30 @@ const SafeWordsViewPage: FC = () => {
       return
     }
 
-    if (safeWordDeleteQuery.isError) {
-      enqueueSnackbar((safeWordDeleteQuery.error as ANY).data.message, {
+    if (videoBlacklistDeleteQuery.isError) {
+      enqueueSnackbar((videoBlacklistDeleteQuery.error as ANY).data.message, {
         variant: 'error',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeWordDeleteQuery.isLoading])
+  }, [videoBlacklistDeleteQuery.isLoading])
 
   return (
-    <AdminLayout title={`Стоп-слово: ${safeWordFindOneQuery?.data?.phrase}`}>
-      <PageContent loading={safeWordFindOneQuery.isLoading}>
-        {safeWordFindOneQuery.isError ? (
-          <Alert severity="error">{(safeWordFindOneQuery.error as ANY)?.data.message}</Alert>
+    <AdminLayout title={title}>
+      <PageContent loading={videoBlacklistFindOneQuery.isLoading}>
+        {videoBlacklistFindOneQuery.isError ? (
+          <Alert severity="error">{(videoBlacklistFindOneQuery.error as ANY)?.data.message}</Alert>
         ) : (
           <>
             <PageHeader
               right={
                 <Box sx={actionButtons}>
-                  <Button component={Link} endIcon={<Edit />} to={browseRoutes.safeWords.edit(id)} variant="contained">
+                  <Button
+                    component={Link}
+                    endIcon={<Edit />}
+                    to={browseRoutes.videoBlacklist.edit(id)}
+                    variant="contained"
+                  >
                     Редактировать
                   </Button>
                   <Button color="error" endIcon={<Delete />} onClick={handleDelete} variant="contained">
@@ -75,17 +82,17 @@ const SafeWordsViewPage: FC = () => {
                   </Button>
                 </Box>
               }
-              title={safeWordFindOneQuery.data?.phrase ?? 'Стоп-слово'}
+              title={title}
               showBackButton
             />
-            <InfoTable columns={columns} data={safeWordFindOneQuery.data} thWidth={200} />
+            <InfoTable columns={columns} data={videoBlacklistFindOneQuery.data} thWidth={200} />
           </>
         )}
       </PageContent>
 
       <DeleteDialog
         onClose={() => setShowDeleteDialog(false)}
-        onConfirm={confirmDeleteSafeWord}
+        onConfirm={confirmDeletevideoBlacklist}
         open={showDeleteDialog}
         text="Точно удалить стоп-слов?"
         title="Удалить стоп-слов"
@@ -94,4 +101,4 @@ const SafeWordsViewPage: FC = () => {
   )
 }
 
-export default SafeWordsViewPage
+export default VideoBlacklistViewPage

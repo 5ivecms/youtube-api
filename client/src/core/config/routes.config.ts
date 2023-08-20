@@ -64,4 +64,11 @@ export const browseRoutes = {
     index: (): string => `/domains`,
     view: (id: number | string = ':id'): string => `/domains/view/${id}`,
   },
+
+  videoBlacklist: {
+    create: (): string => `/video-blacklist/create`,
+    edit: (id: number | string = ':id'): string => `/video-blacklist/edit/${id}`,
+    index: (): string => `/video-blacklist`,
+    view: (id: number | string = ':id'): string => `/video-blacklist/view/${id}`,
+  },
 }

@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Box, Button } from '@mui/material'
 import { useSnackbar } from 'notistack'
-import { FC, useEffect } from 'react'
+import { useEffect } from 'react'
 import { FormProvider, SubmitHandler, useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { object, string } from 'zod'
@@ -19,7 +19,7 @@ const createSafeWordsSchema = object({
   list: string().nonempty('Поле не может быть пустым'),
 })
 
-const CreateSafeWordsForm: FC = () => {
+const CreateSafeWordsForm = () => {
   const navigate = useNavigate()
   const { enqueueSnackbar } = useSnackbar()
 
