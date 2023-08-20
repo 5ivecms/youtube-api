@@ -45,6 +45,18 @@ export class YoutubeApikeyController {
   }
 
   @UseGuards(AuthGuard(['jwt']))
+  @Get('quota-volume')
+  public quotaVolume() {
+    return this.youtubeApikeyService.quotaVolume()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
+  @Get('statistic')
+  public statistic() {
+    return this.youtubeApikeyService.statistic()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
   @Get(':id')
   public findOne(@Param('id') id: number) {
     const paramId = Number(id)

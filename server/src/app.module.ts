@@ -22,6 +22,7 @@ import { ApiKeyModule } from './modules/api-key/api-key.module'
 import { YoutubeModule } from './modules/youtube/youtube.module'
 import { VideoBlacklistModule } from './modules/video-blacklist/video-blacklist.module'
 import { QuotaUsageModule } from './modules/quota-usage/quota-usage.module'
+import { DataSource } from 'typeorm'
 
 const ENV = process.env.NODE_ENV ?? 'development'
 
@@ -81,4 +82,6 @@ const ENV = process.env.NODE_ENV ?? 'development'
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  constructor(private dataSource: DataSource) {}
+}

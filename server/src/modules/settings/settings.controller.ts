@@ -23,6 +23,12 @@ export class SettingsController {
   }
 
   @UseGuards(AuthGuard(['jwt']))
+  @Get('cache-size')
+  public cacheSize() {
+    return this.settingsService.cacheSize()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
   @Post('reset-cache')
   public resetCache() {
     return this.settingsService.resetCache()

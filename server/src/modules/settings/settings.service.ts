@@ -93,4 +93,8 @@ export class SettingsService {
   public async resetCache() {
     await this.cacheManager.reset()
   }
+
+  public async cacheSize() {
+    return await this.cacheManager.store.mget()
+  }
 }

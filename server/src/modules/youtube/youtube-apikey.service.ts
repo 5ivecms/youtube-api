@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { LessThan, Repository } from 'typeorm'
+import { DataSource, LessThan, Repository } from 'typeorm'
 
 import { YoutubeApikey } from './youtube-apikey.entity'
 import {
@@ -11,15 +11,36 @@ import {
 } from './dto'
 import { SearchService } from '../../common/services/search-service/search.service'
 import { MAX_QUOTA } from './constants'
+import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 
 @Injectable()
 export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
-  constructor(@InjectRepository(YoutubeApikey) private readonly youtubeApikeyRepository: Repository<YoutubeApikey>) {
+  constructor(
+    @InjectRepository(YoutubeApikey) private readonly youtubeApikeyRepository: Repository<YoutubeApikey>,
+    private readonly quotaUsageService: QuotaUsageService,
+    private dataSource: DataSource
+  ) {
     super(youtubeApikeyRepository)
   }
 
   public findAll() {
     return this.youtubeApikeyRepository.find()
+  }
+
+  public async quotaVolume() {
+    const { sum } = await this.dataSource
+      .getRepository(YoutubeApikey)
+      .createQueryBuilder('ytApikey')
+      .select('SUM(ytApikey.dailyLimit)', 'sum')
+      .where('ytApikey.isActive = :isActive', { isActive: true })
+      .getRawOne()
+    return Number(sum)
+  }
+
+  public async statistic() {
+    const total = await this.quotaVolume()
+    const { currentUsage } = await this.quotaUsageService.todayUsage()
+    return { total, today: currentUsage }
   }
 
   public getNextKey() {

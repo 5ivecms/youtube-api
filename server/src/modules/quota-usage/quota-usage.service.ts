@@ -46,6 +46,10 @@ export class QuotaUsageService {
     })
   }
 
+  public async todayUsage() {
+    return await this.addUsage({ currentUsage: 0 })
+  }
+
   public async fillDb() {
     const datesArray = getDatesArray()
     await Promise.all(
