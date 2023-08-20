@@ -30,8 +30,11 @@ import {
   YoutubeApiVideoById,
   YoutubeApiVideoByPlaylistId,
 } from './dto'
-import { redisCacheKeys } from './utils'
-import { convertTimeToFormat } from '../../utils'
+import { CacheKeys } from './utils'
+import { convertDurationToSeconds, convertTimeToFormat, getDurationParts } from '../../utils'
+import { VideoBlacklistService } from '../video-blacklist/video-blacklist.service'
+import { SafeWordService } from '../safe-word/safe-word.service'
+import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 
 register('ru', ruLocale)
 
@@ -39,11 +42,19 @@ register('ru', ruLocale)
 export class YoutubeApiService {
   constructor(
     @Inject(CACHE_MANAGER) private cacheService: Cache,
-    private readonly youtubeApikeyService: YoutubeApikeyService
+    private readonly youtubeApikeyService: YoutubeApikeyService,
+    private readonly videoBlacklistService: VideoBlacklistService,
+    private readonly safeWordsService: SafeWordService,
+    private readonly quotaUsageService: QuotaUsageService
   ) {}
 
   public async search(dto: YoutubeApiSearchDto): Promise<Video[]> {
-    const cachedVideo = await this.cacheService.get<Video[]>(redisCacheKeys.search(dto.q))
+    const safeWords = await this.safeWordsService.getAllSafeWords()
+    if (safeWords.includes(dto.q)) {
+      return []
+    }
+
+    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.search(dto.q))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -77,6 +88,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -91,28 +103,36 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
     }
 
-    const videos: Video[] = result.items.map((item) => ({
-      id: item.id.videoId,
-      title: item.snippet.title,
-      description: item.snippet.description,
-      channelId: item.snippet.channelId,
-      channelTitle: item.snippet.channelTitle,
-      duration: '',
-      readabilityDuration: '',
-      publishedAt: item.snippet.publishedAt,
-      timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-      views: 0,
-    }))
+    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    await this.cacheService.set(redisCacheKeys.search(dto.q), videos, 86400000)
+    const videos: Video[] = result.items
+      .filter((item) => !blackList.includes(item.id.videoId))
+      .map((item) => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        description: item.snippet.description,
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        duration: '',
+        durationSec: 0,
+        durationParts: null,
+        readabilityDuration: '',
+        publishedAt: item.snippet.publishedAt,
+        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+        views: 0,
+        viewsStr: '',
+      }))
+
+    await this.cacheService.set(CacheKeys.search(dto.q), videos, 86400000)
 
     return videos
   }
 
   public async categories(): Promise<Category[]> {
-    const cachedVideo = await this.cacheService.get<Category[]>(redisCacheKeys.categories())
+    const cachedVideo = await this.cacheService.get<Category[]>(CacheKeys.categories())
     if (cachedVideo) {
       return cachedVideo
     }
@@ -140,6 +160,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -154,6 +175,7 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
     }
 
     const categories: Category[] = result.items.map((item) => ({
@@ -162,13 +184,18 @@ export class YoutubeApiService {
       channelId: item.snippet.channelId,
     }))
 
-    await this.cacheService.set(redisCacheKeys.categories(), categories, 86400000)
+    await this.cacheService.set(CacheKeys.categories(), categories, 86400000)
 
     return categories
   }
 
   public async videoById(dto: YoutubeApiVideoById): Promise<FullVideoData> {
-    const cachedVideo = await this.cacheService.get<FullVideoData>(redisCacheKeys.videoById(dto.videoId))
+    const inBlackList = await this.videoBlacklistService.inBlacklist(dto.videoId)
+    if (inBlackList) {
+      throw new NotFoundException()
+    }
+
+    const cachedVideo = await this.cacheService.get<FullVideoData>(CacheKeys.videoById(dto.videoId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -196,6 +223,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -210,6 +238,7 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
     }
 
     if (result.items.length === 0) {
@@ -226,9 +255,12 @@ export class YoutubeApiService {
       channelTitle: item.snippet.channelTitle,
       publishedAt: item.snippet.publishedAt,
       duration: item.contentDetails.duration,
+      durationSec: convertDurationToSeconds(item.contentDetails.duration),
+      durationParts: getDurationParts(item.contentDetails.duration),
       readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
       timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
       views: Number(item.statistics.viewCount),
+      viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
     }
 
     let comments = []
@@ -245,13 +277,13 @@ export class YoutubeApiService {
 
     const data: FullVideoData = { video, comments, related }
 
-    await this.cacheService.set(redisCacheKeys.videoById(dto.videoId), data, 86400000)
+    await this.cacheService.set(CacheKeys.videoById(dto.videoId), data, 86400000)
 
     return data
   }
 
   public async videoByCategoryId(dto: YoutubeApiVideoByCategoryIdDto): Promise<Video[]> {
-    const cachedVideo = await this.cacheService.get<Video[]>(redisCacheKeys.videoByCategoryId(dto.categoryId))
+    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByCategoryId(dto.categoryId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -282,6 +314,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -296,28 +329,36 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
     }
 
-    const videos: Video[] = result.items.map((item) => ({
-      id: item.id,
-      title: item.snippet.title,
-      description: '',
-      channelId: item.snippet.channelId,
-      channelTitle: item.snippet.channelTitle,
-      duration: item.contentDetails.duration,
-      readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-      publishedAt: item.snippet.publishedAt,
-      timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-      views: Number(item.statistics.viewCount),
-    }))
+    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    await this.cacheService.set(redisCacheKeys.videoByCategoryId(dto.categoryId), videos, 86400000)
+    const videos: Video[] = result.items
+      .filter((item) => !blackList.includes(item.id))
+      .map((item) => ({
+        id: item.id,
+        title: item.snippet.title,
+        description: '',
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        duration: item.contentDetails.duration,
+        durationSec: convertDurationToSeconds(item.contentDetails.duration),
+        durationParts: getDurationParts(item.contentDetails.duration),
+        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+        publishedAt: item.snippet.publishedAt,
+        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+        views: Number(item.statistics.viewCount),
+        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+      }))
+
+    await this.cacheService.set(CacheKeys.videoByCategoryId(dto.categoryId), videos, 86400000)
 
     return videos
   }
 
   public async videoByChannelId(dto: YoutubeApiVideoByChannelIdDto): Promise<Video[]> {
-    const cachedVideo = await this.cacheService.get<Video[]>(redisCacheKeys.videoByChannelId(dto.channelId))
+    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByChannelId(dto.channelId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -350,6 +391,9 @@ export class YoutubeApiService {
             apiKey,
             QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST
           )
+          await this.quotaUsageService.addUsage({
+            currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
+          })
 
           throw new NotFoundException('Uploads playlist not found')
         }
@@ -371,6 +415,9 @@ export class YoutubeApiService {
           apiKey,
           QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST
         )
+        await this.quotaUsageService.addUsage({
+          currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
+        })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -388,28 +435,38 @@ export class YoutubeApiService {
         apiKey,
         QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST
       )
+      await this.quotaUsageService.addUsage({
+        currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
+      })
     }
 
-    const videos: Video[] = result.items.map((item) => ({
-      id: item.snippet.resourceId.videoId,
-      title: item.snippet.title,
-      description: '',
-      channelId: item.snippet.channelId,
-      channelTitle: item.snippet.channelTitle,
-      duration: '',
-      readabilityDuration: '',
-      publishedAt: item.snippet.publishedAt,
-      timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-      views: 0,
-    }))
+    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    await this.cacheService.set(redisCacheKeys.videoByChannelId(dto.channelId), videos, 86400000)
+    const videos: Video[] = result.items
+      .filter((item) => !blackList.includes(item.snippet.resourceId.videoId))
+      .map((item) => ({
+        id: item.snippet.resourceId.videoId,
+        title: item.snippet.title,
+        description: '',
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        duration: '',
+        durationSec: 0,
+        durationParts: null,
+        readabilityDuration: '',
+        publishedAt: item.snippet.publishedAt,
+        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+        views: 0,
+        viewsStr: '',
+      }))
+
+    await this.cacheService.set(CacheKeys.videoByChannelId(dto.channelId), videos, 86400000)
 
     return videos
   }
 
   public async videoByPlaylistId(dto: YoutubeApiVideoByPlaylistId): Promise<Video[]> {
-    const cachedVideo = await this.cacheService.get<Video[]>(redisCacheKeys.videoByPlaylistId(dto.playlistId))
+    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByPlaylistId(dto.playlistId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -437,6 +494,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -451,28 +509,36 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
     }
 
-    const videos: Video[] = result.items.map((item) => ({
-      id: item.snippet.resourceId.videoId,
-      title: item.snippet.title,
-      description: '',
-      channelId: item.snippet.channelId,
-      channelTitle: item.snippet.channelTitle,
-      duration: item.contentDetails.duration,
-      readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-      publishedAt: item.snippet.publishedAt,
-      timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-      views: Number(item.statistics.viewCount),
-    }))
+    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    await this.cacheService.set(redisCacheKeys.videoByPlaylistId(dto.playlistId), videos, 86400000)
+    const videos: Video[] = result.items
+      .filter((item) => !blackList.includes(item.snippet.resourceId.videoId))
+      .map((item) => ({
+        id: item.snippet.resourceId.videoId,
+        title: item.snippet.title,
+        description: '',
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        duration: item.contentDetails.duration,
+        durationSec: convertDurationToSeconds(item.contentDetails.duration),
+        durationParts: getDurationParts(item.contentDetails.duration),
+        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+        publishedAt: item.snippet.publishedAt,
+        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+        views: Number(item.statistics.viewCount),
+        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+      }))
+
+    await this.cacheService.set(CacheKeys.videoByPlaylistId(dto.playlistId), videos, 86400000)
 
     return videos
   }
 
   public async comments(dto: YoutubeApiCommentsDto): Promise<Comment[]> {
-    const cachedVideo = await this.cacheService.get<Comment[]>(redisCacheKeys.comments(dto.videoId))
+    const cachedVideo = await this.cacheService.get<Comment[]>(CacheKeys.comments(dto.videoId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -501,6 +567,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -515,6 +582,7 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
     }
 
     const comments: Comment[] = result.items.map((item) => ({
@@ -525,13 +593,13 @@ export class YoutubeApiService {
       timeAgo: format(new Date(item.snippet.topLevelComment.snippet.publishedAt), 'ru'),
     }))
 
-    await this.cacheService.set(redisCacheKeys.comments(dto.videoId), comments, 86400000)
+    await this.cacheService.set(CacheKeys.comments(dto.videoId), comments, 86400000)
 
     return comments
   }
 
   public async trends(): Promise<Video[]> {
-    const cachedVideo = await this.cacheService.get<Video[]>(redisCacheKeys.trends())
+    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.trends())
     if (cachedVideo) {
       return cachedVideo
     }
@@ -562,6 +630,7 @@ export class YoutubeApiService {
         }
       } catch (e) {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
@@ -576,22 +645,30 @@ export class YoutubeApiService {
       }
 
       await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
     }
 
-    const videos: Video[] = result.items.map((item) => ({
-      id: item.id,
-      title: item.snippet.title,
-      description: '',
-      channelId: item.snippet.channelId,
-      channelTitle: item.snippet.channelTitle,
-      duration: item.contentDetails.duration,
-      readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-      publishedAt: item.snippet.publishedAt,
-      timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-      views: Number(item.statistics.viewCount),
-    }))
+    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    await this.cacheService.set(redisCacheKeys.trends(), videos, 86400000)
+    const videos: Video[] = result.items
+      .filter((item) => !blackList.includes(item.id))
+      .map((item) => ({
+        id: item.id,
+        title: item.snippet.title,
+        description: '',
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        duration: item.contentDetails.duration,
+        durationSec: convertDurationToSeconds(item.contentDetails.duration),
+        durationParts: getDurationParts(item.contentDetails.duration),
+        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+        publishedAt: item.snippet.publishedAt,
+        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+        views: Number(item.statistics.viewCount),
+        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+      }))
+
+    await this.cacheService.set(CacheKeys.trends(), videos, 86400000)
 
     return videos
   }
@@ -609,7 +686,7 @@ export class YoutubeApiService {
   }
 
   public async categoriesWithVideos() {
-    const cachedData = await this.cacheService.get<CategoryWithVideos[]>(redisCacheKeys.categoriesWithVideos())
+    const cachedData = await this.cacheService.get<CategoryWithVideos[]>(CacheKeys.categoriesWithVideos())
     if (cachedData) {
       return cachedData
     }
@@ -624,7 +701,7 @@ export class YoutubeApiService {
         })
     )
 
-    await this.cacheService.set(redisCacheKeys.categoriesWithVideos(), data, 86400000)
+    await this.cacheService.set(CacheKeys.categoriesWithVideos(), data, 86400000)
 
     return data
   }

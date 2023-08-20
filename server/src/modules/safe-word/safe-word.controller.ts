@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport'
 
 import { SafeWordService } from './safe-word.service'
 import { CreateBulkSafeWordDto, CreateSafeWordDto, DeleteBulkSafeWordDto, UpdateSafeWordDto } from './dto'
-import { SearchDto } from 'src/common/services/search-service/search.dto'
+import { SearchDto } from '../../common/services/search-service/search.dto'
 import { SafeWordEntity } from './safe-word.entity'
 
 @Controller('safe-word')

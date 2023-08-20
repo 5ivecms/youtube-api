@@ -12,6 +12,8 @@ import { User } from '../user/entities/user.entity'
 import { DomainEntity } from '../domain/domain.entity'
 import { ApiKeyEntity } from '../api-key/api-key.entity'
 import { YoutubeApikey } from '../youtube/youtube-apikey.entity'
+import { VideoBlacklistEntity } from '../video-blacklist/video-blacklist.entity'
+import { QuotaUsageEntity } from '../quota-usage/quota-usage.entity'
 
 @Module({
   imports: [
@@ -25,7 +27,6 @@ import { YoutubeApikey } from '../youtube/youtube-apikey.entity'
         username: configService.get('POSTGRES_USER'),
         password: configService.get('POSTGRES_PASSWORD'),
         database: configService.get('POSTGRES_DB'),
-        //entities: ['dist/**/*.entity.{ts,js}'],
         entities: [
           InvidiousEntity,
           ProxyEntity,
@@ -37,6 +38,8 @@ import { YoutubeApikey } from '../youtube/youtube-apikey.entity'
           DomainEntity,
           ApiKeyEntity,
           YoutubeApikey,
+          VideoBlacklistEntity,
+          QuotaUsageEntity,
         ],
         synchronize: true,
       }),

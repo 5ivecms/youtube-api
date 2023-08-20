@@ -20,9 +20,11 @@ import { AuthModule } from './modules/auth/auth.module'
 import { DomainModule } from './modules/domain/domain.module'
 import { ApiKeyModule } from './modules/api-key/api-key.module'
 import { YoutubeModule } from './modules/youtube/youtube.module'
+import { VideoBlacklistModule } from './modules/video-blacklist/video-blacklist.module'
+import { QuotaUsageModule } from './modules/quota-usage/quota-usage.module'
 
 const ENV = process.env.NODE_ENV ?? 'development'
-// asd
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -53,6 +55,7 @@ const ENV = process.env.NODE_ENV ?? 'development'
         SAFE_WORDS_CACHE_TTL: Joi.number().default(60000),
         SETTINGS_CACHE_TTL: Joi.number().default(60000),
         USERAGENTS_CACHE_TTL: Joi.number().default(60000),
+        VIDEO_BLACKLIST_CACHE_TTL: Joi.number().default(60000),
       }),
     }),
     CacheModule.register<RedisClientOptions>({
@@ -72,12 +75,10 @@ const ENV = process.env.NODE_ENV ?? 'development'
     DomainModule,
     ApiKeyModule,
     YoutubeModule,
+    VideoBlacklistModule,
+    QuotaUsageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {
-  /* configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AccessMiddleware).forRoutes('*')
-  } */
-}
+export class AppModule {}

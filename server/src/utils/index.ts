@@ -1,4 +1,5 @@
 import { duration } from 'moment'
+import * as moment from 'moment'
 
 export const isNumeric = (num: any) => !isNaN(num)
 
@@ -59,3 +60,32 @@ export const convertTimeToFormat = (time: string) => {
 
   return `${addLeadingZero(hours)}:${addLeadingZero(minutes)}:${addLeadingZero(seconds)}`
 }
+
+export const convertDurationToSeconds = (time: string) => duration(time).asSeconds()
+
+export const getDurationParts = (time: string) => {
+  const mDuration = duration(time)
+
+  const hours = mDuration.hours()
+  const minutes = mDuration.minutes()
+  const seconds = mDuration.seconds()
+
+  return { hours, minutes, seconds }
+}
+
+export const getDatesArray = () => {
+  const startDate = moment().startOf('year')
+  const currentDate = moment()
+
+  const datesArray = []
+  let currentDateIterator = startDate.clone()
+
+  while (currentDateIterator.isSameOrBefore(currentDate, 'day')) {
+    datesArray.push(currentDateIterator.format('YYYY-MM-DD HH:mm:ssZ') as unknown as Date)
+    currentDateIterator.add(1, 'day')
+  }
+
+  return datesArray
+}
+
+export const randomIntFromInterval = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1) + min)

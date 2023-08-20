@@ -3,8 +3,15 @@ export type Video = {
   title: string
   description: string
   duration: string
+  durationSec: number
+  durationParts: {
+    hours: number
+    minutes: number
+    seconds: number
+  } | null
   readabilityDuration: string
   views: number
+  viewsStr: string
   channelId: string
   channelTitle: string
   timeAgo: string

@@ -8,6 +8,7 @@ export type CacheConfig = {
   safeWordsCacheTtl: number
   settingsCacheTtl: number
   useragentsCacheTtl: number
+  videoBlacklistCacheTtl: number
 }
 
 export default registerAs('cache', () => ({
@@ -18,4 +19,5 @@ export default registerAs('cache', () => ({
   safeWordsCacheTtl: +process.env.SAFE_WORDS_CACHE_TTL,
   settingsCacheTtl: +process.env.SETTINGS_CACHE_TTL,
   useragentsCacheTtl: +process.env.USERAGENTS_CACHE_TTL,
+  videoBlacklistCacheTtl: +process.env.VIDEO_BLACKLIST_CACHE_TTL,
 }))

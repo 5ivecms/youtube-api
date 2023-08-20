@@ -34,6 +34,11 @@ export class SafeWordService extends SearchService<SafeWordEntity> {
     return safeWords
   }
 
+  async getAllSafeWords(): Promise<string[]> {
+    const safeWords = await this.findAll()
+    return safeWords.map((safeWord) => safeWord.phrase)
+  }
+
   public async findOne(id: number) {
     const safeWordCache = await this.cacheManager.get<SafeWordEntity>(getSafeWordСompositeCacheKey(id))
     if (safeWordCache) {
