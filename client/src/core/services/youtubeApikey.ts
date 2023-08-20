@@ -20,6 +20,14 @@ export const YoutubeApikeyService = createApi({
       },
       providesTags: (_result, _error, id) => [{ type: 'YoutubeApikeys', id }],
     }),
+    statisitc: builder.query<{ total: number; today: number }, void>({
+      query() {
+        return {
+          url: apiRoutes.youtubeApikey.statistic(),
+          method: 'GET',
+        }
+      },
+    }),
     search: builder.query<FindAllResponse<YoutubeApikeyModel>, SearchQueryParams<YoutubeApikeyModel>>({
       query(params) {
         return {

@@ -89,6 +89,7 @@ export const apiRoutes = {
     findOne: (id: number): string => `/youtube/apikey/${id}`,
     search: (): string => '/youtube/apikey/search',
     update: (id: number): string => `/youtube/apikey/${id}`,
+    statistic: (): string => `/youtube/apikey/statistic`,
   },
 
   videoBlacklist: {

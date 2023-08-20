@@ -5,4 +5,11 @@ export const styles: Record<string, SxProps> = {
     width: '100%',
     height: 500,
   },
+  head: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    mb: 2,
+  },
 }
