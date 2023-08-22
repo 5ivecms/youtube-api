@@ -23,6 +23,8 @@ import { YoutubeModule } from './modules/youtube/youtube.module'
 import { VideoBlacklistModule } from './modules/video-blacklist/video-blacklist.module'
 import { QuotaUsageModule } from './modules/quota-usage/quota-usage.module'
 import { DataSource } from 'typeorm'
+import { CronModule } from './modules/cron/cron.module'
+import { ScheduleModule } from '@nestjs/schedule'
 
 const ENV = process.env.NODE_ENV ?? 'development'
 
@@ -64,6 +66,7 @@ const ENV = process.env.NODE_ENV ?? 'development'
       store: redisStore,
       url: 'redis://redis:6379',
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     InvidiousModule,
     ProxyModule,
@@ -78,6 +81,7 @@ const ENV = process.env.NODE_ENV ?? 'development'
     YoutubeModule,
     VideoBlacklistModule,
     QuotaUsageModule,
+    CronModule,
   ],
   controllers: [AppController],
   providers: [AppService],

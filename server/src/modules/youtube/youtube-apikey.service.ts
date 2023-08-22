@@ -97,4 +97,8 @@ export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
     const { id, currentUsage } = youtubeApiKey
     return this.youtubeApikeyRepository.update(id, { currentUsage: currentUsage + cost })
   }
+
+  public resetAllKeys() {
+    return this.youtubeApikeyRepository.update({}, { currentUsage: 0 })
+  }
 }

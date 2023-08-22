@@ -14,6 +14,6 @@ import { QuotaUsageModule } from '../quota-usage/quota-usage.module'
   imports: [TypeOrmModule.forFeature([YoutubeApikey]), VideoBlacklistModule, SafeWordModule, QuotaUsageModule],
   controllers: [YoutubeApikeyController, YoutubeApiController],
   providers: [YoutubeApiService, YoutubeApikeyService],
-  exports: [],
+  exports: [YoutubeApikeyService],
 })
 export class YoutubeModule {}
