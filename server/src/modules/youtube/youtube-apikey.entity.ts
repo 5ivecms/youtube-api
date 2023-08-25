@@ -6,20 +6,20 @@ export class YoutubeApikey {
   public readonly id: number
 
   @Column({ type: 'varchar', nullable: false })
-  public readonly apikey: string
+  public apikey: string
 
   @Column({ type: 'int', default: 0 })
-  public readonly currentUsage: number
+  public currentUsage: number
 
   @Column({ type: 'int', default: 10000 })
-  public readonly dailyLimit?: number
+  public dailyLimit?: number
 
   @Column({ type: 'varchar', default: '' })
-  public readonly error: string
+  public error: string
 
   @Column({ type: 'boolean', default: true })
-  public readonly isActive: boolean
+  public isActive: boolean
 
   @Column({ type: 'varchar', default: '' })
-  public readonly comment?: string
+  public comment?: string
 }

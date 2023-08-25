@@ -93,9 +93,11 @@ export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
     return this.youtubeApikeyRepository.update(id, { isActive: false, error })
   }
 
-  public updateCurrentUsage(youtubeApiKey: YoutubeApikey, cost: number) {
-    const { id, currentUsage } = youtubeApiKey
-    return this.youtubeApikeyRepository.update(id, { currentUsage: currentUsage + cost })
+  public async updateCurrentUsage(youtubeApiKey: YoutubeApikey, cost: number) {
+    const entity = await this.findOne(youtubeApiKey.id)
+    entity.currentUsage = entity.currentUsage + cost
+
+    return this.youtubeApikeyRepository.save(entity)
   }
 
   public resetAllKeys() {
