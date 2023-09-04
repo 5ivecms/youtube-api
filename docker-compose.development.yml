@@ -1,4 +1,4 @@
-version: '3.9'
+version: "3.9"
 
 services:
   nginx:
@@ -6,6 +6,9 @@ services:
       - "${NGINX_PORT}:${NGINX_PORT}"
     volumes:
       - ./nginx/nginx.conf.development:/etc/nginx/conf.d/nginx.conf
+    networks:
+      - youtube-api-network
+      - youtube-api-external
 
   server:
     build:
@@ -36,7 +39,7 @@ services:
       POSTGRES_PASSWORD: postgres
     networks:
       - youtube-api-network
-  
+
   dbadmin:
     container_name: youtube-api-pgadmin
     image: dpage/pgadmin4
@@ -63,3 +66,9 @@ services:
       - "${REDIS_COMMANDER_PORT}:8081"
     networks:
       - youtube-api-network
+
+networks:
+  youtube-api-network:
+    driver: bridge
+  youtube-api-external:
+    name: youtube-api-external
