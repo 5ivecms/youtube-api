@@ -38,6 +38,8 @@ import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 
 register('ru', ruLocale)
 
+// Видео без комментариев iWcBrz0YWyE
+
 @Injectable()
 export class YoutubeApiService {
   constructor(
@@ -90,9 +92,13 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -142,8 +148,10 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
+      console.log(apiKey)
+
       if (!apiKey) {
-        return null
+        return []
       }
 
       try {
@@ -162,9 +170,13 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -225,9 +237,13 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -316,9 +332,13 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -419,9 +439,13 @@ export class YoutubeApiService {
           currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
         })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -496,13 +520,17 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
         }
 
+        if (e?.response?.data?.error?.code === 403) {
+          break
+        }
+
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException('Playlist not found')
+          throw new NotFoundException()
         }
 
         throw new BadRequestException()
@@ -569,9 +597,13 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -632,13 +664,17 @@ export class YoutubeApiService {
         await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
         await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
 
-        if (e?.response?.data?.error?.code === 403) {
+        if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
         }
 
+        if (e?.response?.data?.error?.code === 403) {
+          break
+        }
+
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException('Trends not found')
+          throw new NotFoundException()
         }
 
         throw new BadRequestException()
@@ -673,18 +709,6 @@ export class YoutubeApiService {
     return videos
   }
 
-  private async setError(apiKeyId: number, e: any) {
-    if (e?.response?.data?.error?.code === 403) {
-      if (e?.response?.data?.error?.errors && Array.isArray(e?.response?.data?.error?.errors)) {
-        const errors = e?.response?.data?.error?.errors as YTError[]
-        const lastError = errors[0]
-        if (lastError) {
-          await this.youtubeApikeyService.setError(apiKeyId, lastError.reason)
-        }
-      }
-    }
-  }
-
   public async categoriesWithVideos() {
     const cachedData = await this.cacheService.get<CategoryWithVideos[]>(CacheKeys.categoriesWithVideos())
     if (cachedData) {
@@ -704,5 +728,22 @@ export class YoutubeApiService {
     await this.cacheService.set(CacheKeys.categoriesWithVideos(), data, 86400000)
 
     return data
+  }
+
+  private async setError(apiKeyId: number, e: any) {
+    if (e?.response?.data?.error?.code === 403) {
+      if (e?.response?.data?.error?.errors && Array.isArray(e?.response?.data?.error?.errors)) {
+        const errors = e?.response?.data?.error?.errors as YTError[]
+        const lastError = errors[0]
+        if (lastError) {
+          await this.youtubeApikeyService.setError(apiKeyId, lastError.reason)
+        }
+      }
+    }
+  }
+
+  private isQuotaError(e: any): boolean {
+    const errors = (e?.response?.data?.error?.errors ?? []) as YTError[]
+    return errors.find((error) => error.reason === 'quotaExceeded') !== undefined
   }
 }
