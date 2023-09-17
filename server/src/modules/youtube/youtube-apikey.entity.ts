@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm'
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
 
 @Entity('youtube-apikey')
 export class YoutubeApikey {
@@ -22,4 +22,7 @@ export class YoutubeApikey {
 
   @Column({ type: 'varchar', default: '' })
   public comment?: string
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  public createdAt: Date
 }
