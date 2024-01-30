@@ -98,7 +98,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -148,8 +149,6 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      console.log(apiKey)
-
       if (!apiKey) {
         return []
       }
@@ -176,7 +175,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -243,7 +243,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -338,7 +339,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -445,7 +447,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -526,7 +529,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -603,7 +607,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -670,7 +675,8 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 403) {
-          break
+          await this.setError(apiKey.id, e)
+          continue
         }
 
         if (e?.response?.data?.error?.code === 404) {

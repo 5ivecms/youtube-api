@@ -16,8 +16,9 @@ services:
     volumes:
       - ./server/src:/app/src
     depends_on:
-      - db
       - redis
+    networks:
+      - postgres
 
   client:
     build:
@@ -28,29 +29,6 @@ services:
       - WDS_SOCKET_PORT=0
     stdin_open: true
     tty: true
-
-  db:
-    container_name: youtube-api-db
-    image: postgres:14-alpine
-    restart: always
-    ports:
-      - ${POSTGRES_PORT}:5432
-    environment:
-      POSTGRES_PASSWORD: postgres
-    networks:
-      - youtube-api-network
-
-  dbadmin:
-    container_name: youtube-api-pgadmin
-    image: dpage/pgadmin4
-    restart: always
-    ports:
-      - ${PGADMIN_PORT}:80
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-    networks:
-      - youtube-api-network
 
   redis:
     ports:
@@ -72,3 +50,6 @@ networks:
     driver: bridge
   youtube-api-external:
     name: youtube-api-external
+  postgres:
+    name: postgres_postgres
+    external: true
