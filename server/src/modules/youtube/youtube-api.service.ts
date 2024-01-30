@@ -741,7 +741,7 @@ export class YoutubeApiService {
       if (e?.response?.data?.error?.errors && Array.isArray(e?.response?.data?.error?.errors)) {
         const errors = e?.response?.data?.error?.errors as YTError[]
         const lastError = errors[0]
-        if (lastError) {
+        if (lastError && lastError.reason !== 'commentsDisabled') {
           await this.youtubeApikeyService.setError(apiKeyId, lastError.reason)
         }
       }
