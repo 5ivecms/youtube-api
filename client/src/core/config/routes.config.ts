@@ -33,7 +33,7 @@ export const browseRoutes = {
     view: (id: number | string = ':id'): string => `/access-keys/view/${id}`,
   },
 
-  youtubeApiey: {
+  youtubeApiKey: {
     create: (): string => `/youtube-apikey/create`,
     edit: (id: number | string = ':id'): string => `/youtube-apikey/edit/${id}`,
     index: (): string => `/youtube-apikey`,

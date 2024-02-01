@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { DataSource, LessThan, Repository } from 'typeorm'
 
@@ -12,12 +12,15 @@ import {
 import { SearchService } from '../../common/services/search-service/search.service'
 import { MAX_QUOTA } from './constants'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
+import { ProxyService } from '../proxy/proxy.service'
+import { ProxyEntity } from '../proxy/proxy.entity'
 
 @Injectable()
 export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
   constructor(
     @InjectRepository(YoutubeApikey) private readonly youtubeApikeyRepository: Repository<YoutubeApikey>,
     private readonly quotaUsageService: QuotaUsageService,
+    private readonly proxyService: ProxyService,
     private dataSource: DataSource
   ) {
     super(youtubeApikeyRepository)
@@ -43,11 +46,18 @@ export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
     return { total, today: currentUsage }
   }
 
-  public getNextKey() {
-    return this.youtubeApikeyRepository.findOne({
+  public async getNextKey() {
+    const apiKey = await this.youtubeApikeyRepository.findOne({
       where: { currentUsage: LessThan(MAX_QUOTA), isActive: true },
       order: { currentUsage: 'ASC' },
+      relations: { proxies: true },
     })
+
+    if (!apiKey) {
+      throw new NotFoundException('ApiKeys not found')
+    }
+
+    return apiKey
   }
 
   public async findOne(id: number) {
@@ -60,15 +70,29 @@ export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
     return apikey
   }
 
-  public create(dto: CreateYoutubeApikeyDto) {
-    return this.youtubeApikeyRepository.save(dto)
+  public async create(dto: CreateYoutubeApikeyDto, proxies: ProxyEntity[] = []) {
+    const entity = this.youtubeApikeyRepository.create(dto)
+    entity.proxies = proxies
+    return this.youtubeApikeyRepository.save(entity)
   }
 
   public async createBulk(dto: CreateBulkYoutubeApikeyDto) {
     const { apikeys, comment, dailyLimit } = dto
+    const proxies = await this.proxyService.findAll()
+    const apiKeyEntities = await this.youtubeApikeyRepository.find({ relations: { proxies: true } })
+
+    const usedProxies = apiKeyEntities.reduce((acc: ProxyEntity[], item) => [...acc, ...item.proxies], [])
+    const usedProxyIds = usedProxies.map((proxy) => proxy.id)
+
+    const unusedProxies = proxies.filter((proxy) => !usedProxyIds.includes(proxy.id))
+
+    if (unusedProxies.length < apikeys.length) {
+      throw new BadRequestException('Недостаточно свободных прокси')
+    }
+
     await Promise.all(
       apikeys.map(async (apikey) => {
-        return await this.create({ apikey, comment, dailyLimit })
+        return await this.create({ apikey, comment, dailyLimit }, proxies)
       })
     )
   }

@@ -16,6 +16,12 @@ export class YoutubeApiController {
   constructor(private readonly youtubeApiService: YoutubeApiService) {}
 
   @UseGuards(AuthGuard(['api-key', 'jwt']))
+  @Get('test-proxy')
+  public testProxy() {
+    return this.youtubeApiService.testProxy()
+  }
+
+  @UseGuards(AuthGuard(['api-key', 'jwt']))
   @Get('search')
   public search(@Query() dto: YoutubeApiSearchDto) {
     return this.youtubeApiService.search(dto)
@@ -31,6 +37,12 @@ export class YoutubeApiController {
   @Get('video-by-id')
   public videoById(@Query() dto: YoutubeApiVideoById) {
     return this.youtubeApiService.videoById(dto)
+  }
+
+  @UseGuards(AuthGuard(['api-key', 'jwt']))
+  @Get('video-by-ids')
+  public videoByIds(@Query() dto: YoutubeApiVideoById) {
+    return this.youtubeApiService.videoByIds(dto)
   }
 
   @UseGuards(AuthGuard(['api-key', 'jwt']))

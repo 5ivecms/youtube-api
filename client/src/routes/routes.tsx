@@ -183,22 +183,22 @@ export const routes: AppRoute[] = [
   {
     element: <YoutubeApiKeyIndexPage />,
     private: true,
-    path: browseRoutes.youtubeApiey.index(),
+    path: browseRoutes.youtubeApiKey.index(),
   },
   {
     element: <YoutubeApiKeyCreatePage />,
     private: true,
-    path: browseRoutes.youtubeApiey.create(),
+    path: browseRoutes.youtubeApiKey.create(),
   },
   {
     element: <YoutubeApiKeyViewPage />,
     private: true,
-    path: browseRoutes.youtubeApiey.view(),
+    path: browseRoutes.youtubeApiKey.view(),
   },
   {
     element: <YoutubeApiKeyEditPage />,
     private: true,
-    path: browseRoutes.youtubeApiey.edit(),
+    path: browseRoutes.youtubeApiKey.edit(),
   },
 
   // Страницы настроек

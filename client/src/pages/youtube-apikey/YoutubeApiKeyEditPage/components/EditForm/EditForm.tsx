@@ -63,7 +63,7 @@ const EditForm: FC<EdidFormProps> = ({ youtubeApiKey }) => {
       enqueueSnackbar('Api key успешно сохранен', {
         variant: 'success',
       })
-      navigate(browseRoutes.youtubeApiey.index())
+      navigate(browseRoutes.youtubeApiKey.index())
       return
     }
 

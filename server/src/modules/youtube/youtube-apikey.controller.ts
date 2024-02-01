@@ -87,6 +87,12 @@ export class YoutubeApikeyController {
   }
 
   @UseGuards(AuthGuard(['jwt']))
+  @Delete('clear')
+  public clear() {
+    return this.youtubeApikeyService.clear()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
   @Delete('delete-bulk')
   public deleteBulk(@Body() dto: DeleteBulkYoutubeApikeysDto) {
     return this.youtubeApikeyService.deleteBulk(dto)
@@ -96,11 +102,5 @@ export class YoutubeApikeyController {
   @Delete(':id')
   public delete(@Param('id') id: number) {
     return this.youtubeApikeyService.delete(+id)
-  }
-
-  @UseGuards(AuthGuard(['jwt']))
-  @Delete('clear')
-  public clear() {
-    return this.youtubeApikeyService.clear()
   }
 }

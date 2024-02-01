@@ -53,7 +53,7 @@ const CreateYoutubeApiKeyForm = () => {
       enqueueSnackbar('Api key создан', {
         variant: 'success',
       })
-      navigate(browseRoutes.youtubeApiey.index())
+      navigate(browseRoutes.youtubeApiKey.index())
       return
     }
 

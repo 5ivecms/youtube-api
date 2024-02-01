@@ -1,8 +1,10 @@
-import { Box, Chip } from '@mui/material'
+import { Delete } from '@mui/icons-material'
+import { Box, Button, Chip } from '@mui/material'
 import { createColumnHelper } from '@tanstack/react-table'
 import { useSnackbar } from 'notistack'
 import { useEffect, useState } from 'react'
 
+import { DeleteDialog } from '../../../components/common'
 import { DataGrid } from '../../../components/common/DataGrid'
 import {
   DataGridFilterDef,
@@ -81,11 +83,14 @@ const YoutubeApiKeyIndexPage = () => {
   const { enqueueSnackbar } = useSnackbar()
   const relations = getRelations(filters)
 
+  const [showClearDialog, setShowClearDialog] = useState<boolean>(false)
+
   const [params, setParams] = useState<SearchQueryParams<YoutubeApikeyModel>>({ relations })
 
   const apiKeySearchQuery = YoutubeApikeyService.useSearchQuery(params)
   const [deleteApiKey, youtubeApikeyDeleteQuery] = YoutubeApikeyService.useDeleteMutation()
   const [deleteBulkApiKeys, youtubeApikeysDeleteBulkQuery] = YoutubeApikeyService.useDeleteBulkMutation()
+  const [clearApiKeys, apiKeysClearQuery] = YoutubeApikeyService.useClearMutation()
 
   const items = apiKeySearchQuery.data?.items ?? []
   const tableIsLoading =
@@ -97,6 +102,11 @@ const YoutubeApiKeyIndexPage = () => {
 
   const handleDeleteMany = (ids: number[]) => {
     deleteBulkApiKeys(ids.map(Number))
+  }
+
+  const confirmClear = (): void => {
+    clearApiKeys()
+    setShowClearDialog(false)
   }
 
   const onChangePage = (newPage: number): void => {
@@ -178,7 +188,10 @@ const YoutubeApiKeyIndexPage = () => {
       <PageHeader
         right={
           <Box sx={actionButtons}>
-            <AddButton text="Добавить" to={browseRoutes.youtubeApiey.create()} />
+            <Button color="error" endIcon={<Delete />} variant="contained" onClick={() => setShowClearDialog(true)}>
+              Удалить все
+            </Button>
+            <AddButton text="Добавить" to={browseRoutes.youtubeApiKey.create()} />
           </Box>
         }
         title="Youtube API KEYS"
@@ -194,6 +207,14 @@ const YoutubeApiKeyIndexPage = () => {
         filters={filters}
         orderOptions={orderOptions}
         filterOptions={filterOptions}
+      />
+
+      <DeleteDialog
+        onClose={() => setShowClearDialog(false)}
+        open={showClearDialog}
+        onConfirm={confirmClear}
+        text="Точно удалить все API KEYS?"
+        title="Удалить все API KEYS"
       />
     </AdminLayout>
   )

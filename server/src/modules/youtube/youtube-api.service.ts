@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
-import axios from 'axios'
+import axios, { AxiosResponse } from 'axios'
 import { CACHE_MANAGER } from '@nestjs/cache-manager'
 import { Cache } from 'cache-manager'
 import { format, register } from 'timeago.js'
@@ -35,6 +35,8 @@ import { convertDurationToSeconds, convertTimeToFormat, getDurationParts } from 
 import { VideoBlacklistService } from '../video-blacklist/video-blacklist.service'
 import { SafeWordService } from '../safe-word/safe-word.service'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
+import { HttpsProxyAgent } from 'hpagent'
+import { YoutubeApikey } from './youtube-apikey.entity'
 
 register('ru', ruLocale)
 
@@ -71,20 +73,19 @@ export class YoutubeApiService {
       }
 
       try {
-        const response = await axios.get<SearchResponse>(YTApiEndpoints.search, {
-          params: {
-            part: 'snippet',
-            maxResults: '50',
-            regionCode: 'RU',
-            type: 'video',
-            key: apiKey.apikey,
-            q: dto.q,
-            relevanceLanguage: 'ru',
-            safeSearch: 'strict',
-            videoEmbeddable: true,
-            videoSyndicated: true,
-          },
+        const response = await this.request<SearchResponse>(apiKey, YTApiEndpoints.search, {
+          part: 'snippet',
+          maxResults: '50',
+          regionCode: 'RU',
+          type: 'video',
+          q: dto.q,
+          relevanceLanguage: 'ru',
+          safeSearch: 'strict',
+          videoEmbeddable: true,
+          videoSyndicated: true,
+          key: apiKey.apikey,
         })
+
         if (response.data) {
           result = response.data
         }
@@ -148,13 +149,8 @@ export class YoutubeApiService {
 
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
-
-      if (!apiKey) {
-        return []
-      }
-
       try {
-        const response = await axios.get<VideoCategoriesResponse>(YTApiEndpoints.videoCategories, {
+        const response = await this.request<VideoCategoriesResponse>(apiKey, YTApiEndpoints.videoCategories, {
           params: {
             part: 'snippet',
             regionCode: 'RU',
@@ -201,13 +197,13 @@ export class YoutubeApiService {
     return categories
   }
 
-  public async videoById(dto: YoutubeApiVideoById): Promise<FullVideoData> {
-    const inBlackList = await this.videoBlacklistService.inBlacklist(dto.videoId)
+  public async byId(videoId: string): Promise<Video> {
+    const inBlackList = await this.videoBlacklistService.inBlacklist(videoId)
     if (inBlackList) {
       throw new NotFoundException()
     }
 
-    const cachedVideo = await this.cacheService.get<FullVideoData>(CacheKeys.videoById(dto.videoId))
+    const cachedVideo = await this.cacheService.get<Video>(CacheKeys.videoById(videoId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -217,26 +213,18 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      if (!apiKey) {
-        return null
-      }
-
       try {
-        const response = await axios.get<VideoFullResponse>(YTApiEndpoints.videoById, {
-          params: {
-            part: 'snippet,contentDetails,statistics',
-            id: dto.videoId,
-            hl: 'ru_RU',
-            key: apiKey.apikey,
-          },
+        const response = await this.request<VideoFullResponse>(apiKey, YTApiEndpoints.videoById, {
+          part: 'snippet,contentDetails,statistics',
+          id: videoId,
+          hl: 'ru_RU',
+          key: apiKey.apikey,
         })
+
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -252,10 +240,10 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
     }
 
     if (result.items.length === 0) {
@@ -280,23 +268,33 @@ export class YoutubeApiService {
       viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
     }
 
-    let comments = []
-    try {
-      comments = await this.comments({ videoId: video.id })
-      comments = comments.slice(0, 50)
-    } catch (e) {}
+    await this.cacheService.set(CacheKeys.videoById(videoId), video, 86400000)
 
-    let related = []
-    try {
-      related = await this.videoByChannelId({ channelId: video.channelId })
-      related = related.slice(0, 20)
-    } catch (e) {}
+    return video
+  }
 
-    const data: FullVideoData = { video, comments, related }
+  public async videoById(dto: YoutubeApiVideoById): Promise<FullVideoData> {
+    const video: Video = await this.byId(dto.videoId)
 
-    await this.cacheService.set(CacheKeys.videoById(dto.videoId), data, 86400000)
+    const comments: Comment[] = await this.comments({ videoId: video.id })
 
-    return data
+    const related: Video[] = await this.videoByChannelId({ channelId: video.channelId })
+    return { video, comments, related }
+  }
+
+  public async videoByIds(dto: YoutubeApiVideoById) {
+    const ids = dto.videoId.split(',').map((id) => id.trim())
+
+    const cachedVideos = (
+      await Promise.all(
+        ids.map(async (id) => {
+          return await this.cacheService.get<FullVideoData>(CacheKeys.videoById(id))
+        })
+      )
+    ).filter((video) => video !== undefined)
+
+    const cachedVideoIds = cachedVideos.map((video) => video.video.id)
+    const nonCachedVideoIds = ids.filter((id) => !cachedVideoIds.includes(id))
   }
 
   public async videoByCategoryId(dto: YoutubeApiVideoByCategoryIdDto): Promise<Video[]> {
@@ -310,12 +308,8 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      if (!apiKey) {
-        return null
-      }
-
       try {
-        const response = await axios.get<VideoListResponse>(YTApiEndpoints.videoByCategoryId, {
+        const response = await this.request<VideoListResponse>(apiKey, YTApiEndpoints.videoByCategoryId, {
           params: {
             part: 'snippet,contentDetails,statistics',
             chart: 'mostPopular',
@@ -389,12 +383,9 @@ export class YoutubeApiService {
 
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
-      if (!apiKey) {
-        return null
-      }
 
       try {
-        const channelResponse = await axios.get<ChannelListResponse>(YTApiEndpoints.channels, {
+        const channelResponse = await this.request<ChannelListResponse>(apiKey, YTApiEndpoints.channels, {
           params: {
             part: 'contentDetails',
             id: dto.channelId,
@@ -420,7 +411,7 @@ export class YoutubeApiService {
           throw new NotFoundException('Uploads playlist not found')
         }
 
-        const playlistResponse = await axios.get<PlaylistItemListResponse>(YTApiEndpoints.playlistItems, {
+        const playlistResponse = await this.request<PlaylistItemListResponse>(apiKey, YTApiEndpoints.playlistItems, {
           params: {
             part: 'snippet',
             maxResults: 50,
@@ -467,6 +458,10 @@ export class YoutubeApiService {
       })
     }
 
+    if (!result) {
+      return []
+    }
+
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
     const videos: Video[] = result.items
@@ -489,7 +484,7 @@ export class YoutubeApiService {
 
     await this.cacheService.set(CacheKeys.videoByChannelId(dto.channelId), videos, 86400000)
 
-    return videos
+    return videos.slice(0, 20)
   }
 
   public async videoByPlaylistId(dto: YoutubeApiVideoByPlaylistId): Promise<Video[]> {
@@ -508,7 +503,7 @@ export class YoutubeApiService {
       }
 
       try {
-        const response = await axios.get<PlaylistItemListResponse>(YTApiEndpoints.playlistItems, {
+        const response = await this.request<PlaylistItemListResponse>(apiKey, YTApiEndpoints.playlistItems, {
           params: {
             part: 'snippet,contentDetails,statistics',
             maxResults: 50,
@@ -580,12 +575,8 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      if (!apiKey) {
-        return null
-      }
-
       try {
-        const response = await axios.get<CommentThreadListResponse>(YTApiEndpoints.commentThreads, {
+        const response = await this.request<CommentThreadListResponse>(apiKey, YTApiEndpoints.commentThreads, {
           params: {
             part: 'snippet',
             textFormat: 'plainText',
@@ -622,6 +613,10 @@ export class YoutubeApiService {
       await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
     }
 
+    if (!result) {
+      return []
+    }
+
     const comments: Comment[] = result.items.map((item) => ({
       text: item.snippet.topLevelComment.snippet.textDisplay,
       author: item.snippet.topLevelComment.snippet.authorDisplayName,
@@ -632,7 +627,7 @@ export class YoutubeApiService {
 
     await this.cacheService.set(CacheKeys.comments(dto.videoId), comments, 86400000)
 
-    return comments
+    return comments.slice(0, 50)
   }
 
   public async trends(): Promise<Video[]> {
@@ -646,12 +641,8 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      if (!apiKey) {
-        return null
-      }
-
       try {
-        const response = await axios.get<VideoListResponse>(YTApiEndpoints.trends, {
+        const response = await this.request<VideoListResponse>(apiKey, YTApiEndpoints.trends, {
           params: {
             part: 'snippet,contentDetails,statistics',
             chart: 'mostPopular',
@@ -722,6 +713,7 @@ export class YoutubeApiService {
     }
 
     const categories = await this.categories()
+
     const data: CategoryWithVideos[] = await Promise.all(
       categories
         .filter((category) => AVAILABLE_CATEGORY_IDS.includes(Number(category.id)))
@@ -751,5 +743,34 @@ export class YoutubeApiService {
   private isQuotaError(e: any): boolean {
     const errors = (e?.response?.data?.error?.errors ?? []) as YTError[]
     return errors.find((error) => error.reason === 'quotaExceeded') !== undefined
+  }
+
+  // https://www.googleapis.com/youtube/v3/videos?part=snippet&id=YT7QlNTg1O0&key=AIzaSyBMZJGbrwEZiQqFQvs6kF2gIbK791L9qJI
+  public async testProxy() {
+    const httpsAgent = new HttpsProxyAgent({ proxy: 'http://DwK14z:R6pQMT@217.29.62.232:12028' })
+
+    const instance = axios.create({ httpsAgent })
+
+    const result = await instance.get(
+      'https://www.googleapis.com/youtube/v3/videos?part=snippet&id=YT7QlNTg1O0&key=AIzaSyBMZJGbrwEZiQqFQvs6kF2gIbK791L9qJI'
+    )
+
+    return result.data
+  }
+
+  private async request<T>(apiKey: YoutubeApikey, url: string, params: object): Promise<AxiosResponse<T>> {
+    const proxy = apiKey.proxies[0]
+
+    const httpsAgent = new HttpsProxyAgent({
+      proxy: `http://${proxy.login}:${proxy.password}@${proxy.ip}:${proxy.port}`,
+    })
+
+    const instance = axios.create({
+      httpsAgent,
+      params,
+    })
+    const response = await instance.get<T>(url)
+
+    return response
   }
 }

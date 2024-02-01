@@ -58,7 +58,7 @@ const YoutubeApiKeyViewPage = () => {
       enqueueSnackbar('Юзерагент успешно удален', {
         variant: 'success',
       })
-      navigate(browseRoutes.youtubeApiey.index())
+      navigate(browseRoutes.youtubeApiKey.index())
       return
     }
 

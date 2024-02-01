@@ -7,7 +7,7 @@ export const headerMenu: HeaderMenuItem[] = [
   { title: 'Юзерагенты', url: browseRoutes.useragent.index() },
   { title: 'Стоп-слова', url: browseRoutes.safeWords.index() },
   { title: 'API KEYS', url: browseRoutes.apiKey.index() },
-  { title: 'YT API KEYS', url: browseRoutes.youtubeApiey.index() },
+  { title: 'YT API KEYS', url: browseRoutes.youtubeApiKey.index() },
   { title: 'Прокси', url: browseRoutes.proxy.index() },
   { title: 'БЛ видео', url: browseRoutes.videoBlacklist.index() },
   { title: 'Настройки', url: browseRoutes.settings.view() },

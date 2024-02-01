@@ -1,6 +1,7 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm'
+import { Column, Entity, ManyToMany, PrimaryGeneratedColumn } from 'typeorm'
 
 import { ProxyProtocol, ProxyType } from './proxy.types'
+import { YoutubeApikey } from '../youtube/youtube-apikey.entity'
 
 @Entity('proxy')
 export class ProxyEntity {

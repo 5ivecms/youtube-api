@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
+import { Column, CreateDateColumn, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm'
+import { ProxyEntity } from '../proxy/proxy.entity'
 
 @Entity('youtube-apikey')
 export class YoutubeApikey {
@@ -25,4 +26,8 @@ export class YoutubeApikey {
 
   @CreateDateColumn({ type: 'timestamptz' })
   public createdAt: Date
+
+  @ManyToMany(() => ProxyEntity)
+  @JoinTable()
+  public proxies: ProxyEntity[]
 }

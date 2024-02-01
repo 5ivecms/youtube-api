@@ -1,4 +1,4 @@
-export const MAX_QUOTA = 9500
+export const MAX_QUOTA = 9000
 
 const BASE_URL = 'https://www.googleapis.com/youtube/v3'
 
