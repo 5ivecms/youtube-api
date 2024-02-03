@@ -10,6 +10,7 @@ import { VideoBlacklistModule } from '../video-blacklist/video-blacklist.module'
 import { SafeWordModule } from '../safe-word/safe-word.module'
 import { QuotaUsageModule } from '../quota-usage/quota-usage.module'
 import { ProxyModule } from '../proxy/proxy.module'
+import { SettingsModule } from '../settings/settings.module'
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ProxyModule } from '../proxy/proxy.module'
     SafeWordModule,
     QuotaUsageModule,
     ProxyModule,
+    SettingsModule,
   ],
   controllers: [YoutubeApikeyController, YoutubeApiController],
   providers: [YoutubeApiService, YoutubeApikeyService],

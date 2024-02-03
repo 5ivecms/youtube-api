@@ -11,6 +11,14 @@ export const YoutubeApikeyService = createApi({
   baseQuery: baseQueryWithRefreshToken,
   tagTypes: ['YoutubeApikeys'],
   endpoints: (builder) => ({
+    findAll: builder.query<YoutubeApikeyModel[], void>({
+      query() {
+        return {
+          url: apiRoutes.youtubeApikey.findAll(),
+          method: 'GET',
+        }
+      },
+    }),
     findOne: builder.query<YoutubeApikeyModel, number>({
       query(id) {
         return {
@@ -62,6 +70,24 @@ export const YoutubeApikeyService = createApi({
           url: apiRoutes.youtubeApikey.createBulk(),
           method: 'POST',
           body: data,
+        }
+      },
+      invalidatesTags: [{ type: 'YoutubeApikeys', id: 'LIST' }],
+    }),
+    resetAllErrors: builder.mutation<void, void>({
+      query() {
+        return {
+          url: apiRoutes.youtubeApikey.resetAllErrors(),
+          method: 'POST',
+        }
+      },
+      invalidatesTags: [{ type: 'YoutubeApikeys', id: 'LIST' }],
+    }),
+    resetQuotaErrors: builder.mutation<void, void>({
+      query() {
+        return {
+          url: apiRoutes.youtubeApikey.resetQuotaErrors(),
+          method: 'POST',
         }
       },
       invalidatesTags: [{ type: 'YoutubeApikeys', id: 'LIST' }],

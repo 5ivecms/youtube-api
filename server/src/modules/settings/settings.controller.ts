@@ -23,6 +23,12 @@ export class SettingsController {
   }
 
   @UseGuards(AuthGuard(['jwt']))
+  @Get('app-settings')
+  public getAppSettings() {
+    return this.settingsService.getAppSettings()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
   @Get('cache-size')
   public cacheSize() {
     return this.settingsService.cacheSize()

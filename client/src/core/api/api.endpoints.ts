@@ -90,6 +90,8 @@ export const apiRoutes = {
     search: (): string => '/youtube/apikey/search',
     update: (id: number): string => `/youtube/apikey/${id}`,
     statistic: (): string => `/youtube/apikey/statistic`,
+    resetAllErrors: (): string => `/youtube/apikey/reset-all-errors`,
+    resetQuotaErrors: (): string => `/youtube/apikey/reset-quota-errors`,
   },
 
   videoBlacklist: {

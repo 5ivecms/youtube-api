@@ -11,13 +11,16 @@ export type CacheConfig = {
   videoBlacklistCacheTtl: number
 }
 
-export default registerAs('cache', () => ({
-  apiKeyCacheTtl: +process.env.API_KEY_CACHE_TTL,
-  domainsCacheTtl: +process.env.DOMAINS_CACHE_TTL,
-  invidiousCacheTtl: +process.env.INVIDIOUS_CACHE_TTL,
-  proxyCacheTtl: +process.env.PROXY_CACHE_TTL,
-  safeWordsCacheTtl: +process.env.SAFE_WORDS_CACHE_TTL,
-  settingsCacheTtl: +process.env.SETTINGS_CACHE_TTL,
-  useragentsCacheTtl: +process.env.USERAGENTS_CACHE_TTL,
-  videoBlacklistCacheTtl: +process.env.VIDEO_BLACKLIST_CACHE_TTL,
-}))
+export default registerAs(
+  'cache',
+  (): CacheConfig => ({
+    apiKeyCacheTtl: +process.env.API_KEY_CACHE_TTL,
+    domainsCacheTtl: +process.env.DOMAINS_CACHE_TTL,
+    invidiousCacheTtl: +process.env.INVIDIOUS_CACHE_TTL,
+    proxyCacheTtl: +process.env.PROXY_CACHE_TTL,
+    safeWordsCacheTtl: +process.env.SAFE_WORDS_CACHE_TTL,
+    settingsCacheTtl: +process.env.SETTINGS_CACHE_TTL,
+    useragentsCacheTtl: +process.env.USERAGENTS_CACHE_TTL,
+    videoBlacklistCacheTtl: +process.env.VIDEO_BLACKLIST_CACHE_TTL,
+  })
+)

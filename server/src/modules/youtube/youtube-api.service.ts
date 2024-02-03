@@ -37,6 +37,7 @@ import { SafeWordService } from '../safe-word/safe-word.service'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 import { HttpsProxyAgent } from 'hpagent'
 import { YoutubeApikey } from './youtube-apikey.entity'
+import { SettingsService } from '../settings/settings.service'
 
 register('ru', ruLocale)
 
@@ -49,10 +50,15 @@ export class YoutubeApiService {
     private readonly youtubeApikeyService: YoutubeApikeyService,
     private readonly videoBlacklistService: VideoBlacklistService,
     private readonly safeWordsService: SafeWordService,
-    private readonly quotaUsageService: QuotaUsageService
+    private readonly quotaUsageService: QuotaUsageService,
+    private readonly settingsService: SettingsService
   ) {}
 
   public async search(dto: YoutubeApiSearchDto): Promise<Video[]> {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const safeWords = await this.safeWordsService.getAllSafeWords()
     if (safeWords.includes(dto.q)) {
       return []
@@ -68,10 +74,6 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      if (!apiKey) {
-        return null
-      }
-
       try {
         const response = await this.request<SearchResponse>(apiKey, YTApiEndpoints.search, {
           part: 'snippet',
@@ -83,16 +85,12 @@ export class YoutubeApiService {
           safeSearch: 'strict',
           videoEmbeddable: true,
           videoSyndicated: true,
-          key: apiKey.apikey,
         })
 
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -108,38 +106,33 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
     }
 
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    const videos: Video[] = result.items
+    const videoIds: string[] = result.items
       .filter((item) => !blackList.includes(item.id.videoId))
-      .map((item) => ({
-        id: item.id.videoId,
-        title: item.snippet.title,
-        description: item.snippet.description,
-        channelId: item.snippet.channelId,
-        channelTitle: item.snippet.channelTitle,
-        duration: '',
-        durationSec: 0,
-        durationParts: null,
-        readabilityDuration: '',
-        publishedAt: item.snippet.publishedAt,
-        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-        views: 0,
-        viewsStr: '',
-      }))
+      .map((item) => item.id.videoId)
 
-    await this.cacheService.set(CacheKeys.search(dto.q), videos, 86400000)
+    if (!videoIds.length) {
+      return []
+    }
+
+    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+
+    await this.cacheService.set(CacheKeys.search(dto.q), videos, settings.search * 86400000)
 
     return videos
   }
 
   public async categories(): Promise<Category[]> {
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+    await this.checkAppOnline()
+
     const cachedVideo = await this.cacheService.get<Category[]>(CacheKeys.categories())
     if (cachedVideo) {
       return cachedVideo
@@ -151,20 +144,14 @@ export class YoutubeApiService {
       const apiKey = await this.youtubeApikeyService.getNextKey()
       try {
         const response = await this.request<VideoCategoriesResponse>(apiKey, YTApiEndpoints.videoCategories, {
-          params: {
-            part: 'snippet',
-            regionCode: 'RU',
-            hl: 'ru_RU',
-            key: apiKey.apikey,
-          },
+          part: 'snippet',
+          regionCode: 'RU',
+          hl: 'ru_RU',
         })
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -180,10 +167,10 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
     }
 
     const categories: Category[] = result.items.map((item) => ({
@@ -192,12 +179,22 @@ export class YoutubeApiService {
       channelId: item.snippet.channelId,
     }))
 
-    await this.cacheService.set(CacheKeys.categories(), categories, 86400000)
+    if (!categories.length) {
+      return []
+    }
+
+    await this.cacheService.set(CacheKeys.categories(), categories, settings.categories * 86400000)
 
     return categories
   }
 
-  public async byId(videoId: string): Promise<Video> {
+  public async videoById(dto: YoutubeApiVideoById): Promise<Video> {
+    const appSettings = await this.settingsService.getAppSettings()
+    if (!appSettings.enabled) {
+      throw new BadRequestException('App offline')
+    }
+
+    const { videoId } = dto
     const inBlackList = await this.videoBlacklistService.inBlacklist(videoId)
     if (inBlackList) {
       throw new NotFoundException()
@@ -218,7 +215,6 @@ export class YoutubeApiService {
           part: 'snippet,contentDetails,statistics',
           id: videoId,
           hl: 'ru_RU',
-          key: apiKey.apikey,
         })
 
         if (response.data) {
@@ -250,12 +246,14 @@ export class YoutubeApiService {
       throw new NotFoundException('Video not found')
     }
 
+    const parserSettings = await this.settingsService.getParserSettings()
+
     const item = result.items[0]
 
     const video: Video = {
       id: item.id,
       title: item.snippet.title,
-      description: item.snippet.description,
+      description: parserSettings.saveVideoDescription ? item.snippet.description : '',
       channelId: item.snippet.channelId,
       channelTitle: item.snippet.channelTitle,
       publishedAt: item.snippet.publishedAt,
@@ -268,36 +266,106 @@ export class YoutubeApiService {
       viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
     }
 
-    await this.cacheService.set(CacheKeys.videoById(videoId), video, 86400000)
+    await this.setCacheVideoById(video)
 
     return video
   }
 
-  public async videoById(dto: YoutubeApiVideoById): Promise<FullVideoData> {
-    const video: Video = await this.byId(dto.videoId)
+  public async videoByIds(dto: YoutubeApiVideoById): Promise<Video[]> {
+    await this.checkAppOnline()
 
-    const comments: Comment[] = await this.comments({ videoId: video.id })
-
-    const related: Video[] = await this.videoByChannelId({ channelId: video.channelId })
-    return { video, comments, related }
-  }
-
-  public async videoByIds(dto: YoutubeApiVideoById) {
     const ids = dto.videoId.split(',').map((id) => id.trim())
 
     const cachedVideos = (
       await Promise.all(
         ids.map(async (id) => {
-          return await this.cacheService.get<FullVideoData>(CacheKeys.videoById(id))
+          return await this.cacheService.get<Video>(CacheKeys.videoById(id))
         })
       )
     ).filter((video) => video !== undefined)
 
-    const cachedVideoIds = cachedVideos.map((video) => video.video.id)
+    const cachedVideoIds = cachedVideos.map((video) => video.id)
     const nonCachedVideoIds = ids.filter((id) => !cachedVideoIds.includes(id))
+
+    if (!nonCachedVideoIds.length) {
+      return cachedVideos
+    }
+
+    let result: VideoFullResponse | null = null
+
+    while (!result) {
+      const apiKey = await this.youtubeApikeyService.getNextKey()
+
+      try {
+        const response = await this.request<VideoFullResponse>(apiKey, YTApiEndpoints.videoById, {
+          part: 'snippet,contentDetails,statistics',
+          id: nonCachedVideoIds.join(','),
+          hl: 'ru_RU',
+        })
+
+        if (response.data) {
+          result = response.data
+        }
+      } catch (e) {
+        if (this.isQuotaError(e)) {
+          await this.setError(apiKey.id, e)
+          continue
+        }
+
+        if (e?.response?.data?.error?.code === 403) {
+          await this.setError(apiKey.id, e)
+          continue
+        }
+
+        if (e?.response?.data?.error?.code === 404) {
+          throw new NotFoundException()
+        }
+
+        throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
+      }
+    }
+
+    if (result.items.length === 0) {
+      throw new NotFoundException('Video not found')
+    }
+
+    const parserSettings = await this.settingsService.getParserSettings()
+
+    const videos: Video[] = result.items.map((item) => {
+      return {
+        id: item.id,
+        title: item.snippet.title,
+        description: parserSettings.saveVideoDescription ? item.snippet.description : '',
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        publishedAt: item.snippet.publishedAt,
+        duration: item.contentDetails.duration,
+        durationSec: convertDurationToSeconds(item.contentDetails.duration),
+        durationParts: getDurationParts(item.contentDetails.duration),
+        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+        views: Number(item.statistics.viewCount),
+        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+      }
+    })
+
+    await Promise.all(
+      videos.map(async (video) => {
+        await this.setCacheVideoById(video)
+      })
+    )
+
+    return [...cachedVideos, ...videos]
   }
 
   public async videoByCategoryId(dto: YoutubeApiVideoByCategoryIdDto): Promise<Video[]> {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByCategoryId(dto.categoryId))
     if (cachedVideo) {
       return cachedVideo
@@ -310,23 +378,17 @@ export class YoutubeApiService {
 
       try {
         const response = await this.request<VideoListResponse>(apiKey, YTApiEndpoints.videoByCategoryId, {
-          params: {
-            part: 'snippet,contentDetails,statistics',
-            chart: 'mostPopular',
-            videoCategoryId: dto.categoryId,
-            maxResults: 50,
-            regionCode: 'RU',
-            hl: 'ru_RU',
-            key: apiKey.apikey,
-          },
+          part: 'snippet,contentDetails,statistics',
+          chart: 'mostPopular',
+          videoCategoryId: dto.categoryId,
+          maxResults: 50,
+          regionCode: 'RU',
+          hl: 'ru_RU',
         })
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -342,38 +404,47 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
     }
 
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
+    const videoIds: string[] = result.items.filter((item) => !blackList.includes(item.id)).map((item) => item.id)
 
-    const videos: Video[] = result.items
-      .filter((item) => !blackList.includes(item.id))
-      .map((item) => ({
-        id: item.id,
-        title: item.snippet.title,
-        description: '',
-        channelId: item.snippet.channelId,
-        channelTitle: item.snippet.channelTitle,
-        duration: item.contentDetails.duration,
-        durationSec: convertDurationToSeconds(item.contentDetails.duration),
-        durationParts: getDurationParts(item.contentDetails.duration),
-        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-        publishedAt: item.snippet.publishedAt,
-        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-        views: Number(item.statistics.viewCount),
-        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
-      }))
+    if (!videoIds.length) {
+      return []
+    }
 
-    await this.cacheService.set(CacheKeys.videoByCategoryId(dto.categoryId), videos, 86400000)
+    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+
+    await this.cacheService.set(
+      CacheKeys.videoByCategoryId(dto.categoryId),
+      videos,
+      settings.videoByCategoryId * 86400000
+    )
 
     return videos
   }
 
+  public async videoFull(dto: YoutubeApiVideoById): Promise<FullVideoData> {
+    await this.checkAppOnline()
+
+    const { videoId } = dto
+
+    const video: Video = await this.videoById({ videoId })
+    const comments: Comment[] = await this.comments({ videoId: video.id })
+    const related: Video[] = await this.videoByChannelId({ channelId: video.channelId })
+
+    return { video, comments, related }
+  }
+
   public async videoByChannelId(dto: YoutubeApiVideoByChannelIdDto): Promise<Video[]> {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByChannelId(dto.channelId))
     if (cachedVideo) {
       return cachedVideo
@@ -386,11 +457,8 @@ export class YoutubeApiService {
 
       try {
         const channelResponse = await this.request<ChannelListResponse>(apiKey, YTApiEndpoints.channels, {
-          params: {
-            part: 'contentDetails',
-            id: dto.channelId,
-            key: apiKey.apikey,
-          },
+          part: 'contentDetails',
+          id: dto.channelId,
         })
 
         const uploadsPlaylist = channelResponse.data.items.find(
@@ -400,38 +468,22 @@ export class YoutubeApiService {
         )
 
         if (!uploadsPlaylist) {
-          await this.youtubeApikeyService.updateCurrentUsage(
-            apiKey,
-            QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST
-          )
-          await this.quotaUsageService.addUsage({
-            currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
-          })
+          await this.youtubeApikeyService.updateCurrentUsage(apiKey, 2)
+          await this.quotaUsageService.addUsage({ currentUsage: 2 })
 
           throw new NotFoundException('Uploads playlist not found')
         }
 
         const playlistResponse = await this.request<PlaylistItemListResponse>(apiKey, YTApiEndpoints.playlistItems, {
-          params: {
-            part: 'snippet',
-            maxResults: 50,
-            playlistId: uploadsPlaylist.contentDetails.relatedPlaylists.uploads,
-            key: apiKey.apikey,
-          },
+          part: 'snippet',
+          maxResults: 50,
+          playlistId: uploadsPlaylist.contentDetails.relatedPlaylists.uploads,
         })
 
         if (playlistResponse.data) {
           result = playlistResponse.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(
-          apiKey,
-          QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST
-        )
-        await this.quotaUsageService.addUsage({
-          currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
-        })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -447,15 +499,10 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, 2)
+        await this.quotaUsageService.addUsage({ currentUsage: 2 })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(
-        apiKey,
-        QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST
-      )
-      await this.quotaUsageService.addUsage({
-        currentUsage: QuotaCosts.CHANNELS_LIST + QuotaCosts.PLAYLIST_ITEMS_LIST,
-      })
     }
 
     if (!result) {
@@ -464,30 +511,26 @@ export class YoutubeApiService {
 
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    const videos: Video[] = result.items
+    const videoIds: string[] = result.items
       .filter((item) => !blackList.includes(item.snippet.resourceId.videoId))
-      .map((item) => ({
-        id: item.snippet.resourceId.videoId,
-        title: item.snippet.title,
-        description: '',
-        channelId: item.snippet.channelId,
-        channelTitle: item.snippet.channelTitle,
-        duration: '',
-        durationSec: 0,
-        durationParts: null,
-        readabilityDuration: '',
-        publishedAt: item.snippet.publishedAt,
-        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-        views: 0,
-        viewsStr: '',
-      }))
+      .map((item) => item.snippet.resourceId.videoId)
 
-    await this.cacheService.set(CacheKeys.videoByChannelId(dto.channelId), videos, 86400000)
+    if (!videoIds.length) {
+      return []
+    }
+
+    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+
+    await this.cacheService.set(CacheKeys.videoByChannelId(dto.channelId), videos, settings.videoByChannelId * 86400000)
 
     return videos.slice(0, 20)
   }
 
   public async videoByPlaylistId(dto: YoutubeApiVideoByPlaylistId): Promise<Video[]> {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByPlaylistId(dto.playlistId))
     if (cachedVideo) {
       return cachedVideo
@@ -498,26 +541,16 @@ export class YoutubeApiService {
     while (!result) {
       const apiKey = await this.youtubeApikeyService.getNextKey()
 
-      if (!apiKey) {
-        return null
-      }
-
       try {
         const response = await this.request<PlaylistItemListResponse>(apiKey, YTApiEndpoints.playlistItems, {
-          params: {
-            part: 'snippet,contentDetails,statistics',
-            maxResults: 50,
-            playlistId: dto.playlistId,
-            key: apiKey.apikey,
-          },
+          part: 'snippet,contentDetails,statistics',
+          maxResults: 50,
+          playlistId: dto.playlistId,
         })
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -533,38 +566,38 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
     }
 
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    const videos: Video[] = result.items
+    const videoIds: string[] = result.items
       .filter((item) => !blackList.includes(item.snippet.resourceId.videoId))
-      .map((item) => ({
-        id: item.snippet.resourceId.videoId,
-        title: item.snippet.title,
-        description: '',
-        channelId: item.snippet.channelId,
-        channelTitle: item.snippet.channelTitle,
-        duration: item.contentDetails.duration,
-        durationSec: convertDurationToSeconds(item.contentDetails.duration),
-        durationParts: getDurationParts(item.contentDetails.duration),
-        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-        publishedAt: item.snippet.publishedAt,
-        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-        views: Number(item.statistics.viewCount),
-        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
-      }))
+      .map((item) => item.snippet.resourceId.videoId)
 
-    await this.cacheService.set(CacheKeys.videoByPlaylistId(dto.playlistId), videos, 86400000)
+    if (!videoIds.length) {
+      return []
+    }
+
+    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+
+    await this.cacheService.set(
+      CacheKeys.videoByPlaylistId(dto.playlistId),
+      videos,
+      settings.videoByPlaylistId * 86400000
+    )
 
     return videos
   }
 
   public async comments(dto: YoutubeApiCommentsDto): Promise<Comment[]> {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const cachedVideo = await this.cacheService.get<Comment[]>(CacheKeys.comments(dto.videoId))
     if (cachedVideo) {
       return cachedVideo
@@ -577,21 +610,16 @@ export class YoutubeApiService {
 
       try {
         const response = await this.request<CommentThreadListResponse>(apiKey, YTApiEndpoints.commentThreads, {
-          params: {
-            part: 'snippet',
-            textFormat: 'plainText',
-            videoId: dto.videoId,
-            maxResults: 100,
-            key: apiKey.apikey,
-          },
+          part: 'snippet',
+          textFormat: 'plainText',
+          videoId: dto.videoId,
+          maxResults: 100,
         })
+
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -607,10 +635,10 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
     }
 
     if (!result) {
@@ -625,12 +653,16 @@ export class YoutubeApiService {
       timeAgo: format(new Date(item.snippet.topLevelComment.snippet.publishedAt), 'ru'),
     }))
 
-    await this.cacheService.set(CacheKeys.comments(dto.videoId), comments, 86400000)
+    await this.cacheService.set(CacheKeys.comments(dto.videoId), comments, settings.videoComments * 86400000)
 
     return comments.slice(0, 50)
   }
 
   public async trends(): Promise<Video[]> {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.trends())
     if (cachedVideo) {
       return cachedVideo
@@ -643,23 +675,17 @@ export class YoutubeApiService {
 
       try {
         const response = await this.request<VideoListResponse>(apiKey, YTApiEndpoints.trends, {
-          params: {
-            part: 'snippet,contentDetails,statistics',
-            chart: 'mostPopular',
-            maxResults: 50,
-            regionCode: 'RU',
-            hl: 'ru_RU',
-            key: apiKey.apikey,
-          },
+          part: 'snippet,contentDetails,statistics',
+          chart: 'mostPopular',
+          maxResults: 50,
+          regionCode: 'RU',
+          hl: 'ru_RU',
         })
 
         if (response.data) {
           result = response.data
         }
       } catch (e) {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
-
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -675,38 +701,31 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
+      } finally {
+        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
+        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
-
-      await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-      await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
     }
 
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
-    const videos: Video[] = result.items
-      .filter((item) => !blackList.includes(item.id))
-      .map((item) => ({
-        id: item.id,
-        title: item.snippet.title,
-        description: '',
-        channelId: item.snippet.channelId,
-        channelTitle: item.snippet.channelTitle,
-        duration: item.contentDetails.duration,
-        durationSec: convertDurationToSeconds(item.contentDetails.duration),
-        durationParts: getDurationParts(item.contentDetails.duration),
-        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-        publishedAt: item.snippet.publishedAt,
-        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-        views: Number(item.statistics.viewCount),
-        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
-      }))
+    const videoIds: string[] = result.items.filter((item) => !blackList.includes(item.id)).map((item) => item.id)
+    if (!videoIds.length) {
+      return []
+    }
 
-    await this.cacheService.set(CacheKeys.trends(), videos, 86400000)
+    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+
+    await this.cacheService.set(CacheKeys.trends(), videos, settings.trends * 86400000)
 
     return videos
   }
 
   public async categoriesWithVideos() {
+    await this.checkAppOnline()
+
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+
     const cachedData = await this.cacheService.get<CategoryWithVideos[]>(CacheKeys.categoriesWithVideos())
     if (cachedData) {
       return cachedData
@@ -723,7 +742,11 @@ export class YoutubeApiService {
         })
     )
 
-    await this.cacheService.set(CacheKeys.categoriesWithVideos(), data, 86400000)
+    if (!data.length) {
+      return []
+    }
+
+    await this.cacheService.set(CacheKeys.categoriesWithVideos(), data, settings.categoriesWithVideos * 86400000)
 
     return data
   }
@@ -745,32 +768,31 @@ export class YoutubeApiService {
     return errors.find((error) => error.reason === 'quotaExceeded') !== undefined
   }
 
-  // https://www.googleapis.com/youtube/v3/videos?part=snippet&id=YT7QlNTg1O0&key=AIzaSyBMZJGbrwEZiQqFQvs6kF2gIbK791L9qJI
-  public async testProxy() {
-    const httpsAgent = new HttpsProxyAgent({ proxy: 'http://DwK14z:R6pQMT@217.29.62.232:12028' })
-
-    const instance = axios.create({ httpsAgent })
-
-    const result = await instance.get(
-      'https://www.googleapis.com/youtube/v3/videos?part=snippet&id=YT7QlNTg1O0&key=AIzaSyBMZJGbrwEZiQqFQvs6kF2gIbK791L9qJI'
-    )
-
-    return result.data
-  }
-
   private async request<T>(apiKey: YoutubeApikey, url: string, params: object): Promise<AxiosResponse<T>> {
     const proxy = apiKey.proxies[0]
 
     const httpsAgent = new HttpsProxyAgent({
-      proxy: `http://${proxy.login}:${proxy.password}@${proxy.ip}:${proxy.port}`,
+      proxy: `${proxy.protocol}://${proxy.login}:${proxy.password}@${proxy.ip}:${proxy.port}`,
     })
 
     const instance = axios.create({
       httpsAgent,
-      params,
+      params: { ...params, key: apiKey.apikey },
     })
     const response = await instance.get<T>(url)
 
     return response
+  }
+
+  private async checkAppOnline() {
+    const appSettings = await this.settingsService.getAppSettings()
+    if (!appSettings.enabled) {
+      throw new BadRequestException('App offline')
+    }
+  }
+
+  private async setCacheVideoById(video: Video) {
+    const settings = await this.settingsService.getYoutubeCacheSettings()
+    await this.cacheService.set(CacheKeys.videoById(video.id), video, settings.videoById * 86400000)
   }
 }

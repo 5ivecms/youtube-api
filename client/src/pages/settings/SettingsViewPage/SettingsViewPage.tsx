@@ -1,6 +1,6 @@
 import { Alert, Button, Grid, Paper } from '@mui/material'
 import { useSnackbar } from 'notistack'
-import { FC, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { PageContent } from '../../../components/common'
 import { PageHeader } from '../../../components/ui'
@@ -11,7 +11,7 @@ import { AdminLayout } from '../../../layouts'
 import { SettingsForm } from './components'
 import { paper } from './styles'
 
-const SettingsViewPage: FC = () => {
+const SettingsViewPage = () => {
   const { enqueueSnackbar } = useSnackbar()
   const settingsFindAllQuery = SettingsService.useFindAllQuery()
   const [updateBulk, settingsUpdateBulkQuery] = SettingsService.useUpdateBulkMutation()
@@ -20,8 +20,23 @@ const SettingsViewPage: FC = () => {
   const isLoading =
     settingsUpdateBulkQuery.isLoading || settingsFindAllQuery.isLoading || settingsFindAllQuery.isFetching
 
-  const invidiousSettings = useMemo(
-    () => (settingsFindAllQuery.data ?? []).filter((setting) => setting.section === 'invidious'),
+  const appSettings = useMemo(
+    () => (settingsFindAllQuery.data ?? []).filter((setting) => setting.section === 'app'),
+    [settingsFindAllQuery.data]
+  )
+
+  const apiKeysSettings = useMemo(
+    () => (settingsFindAllQuery.data ?? []).filter((setting) => setting.section === 'apiKeys'),
+    [settingsFindAllQuery.data]
+  )
+
+  const youtubeCacheSettings = useMemo(
+    () => (settingsFindAllQuery.data ?? []).filter((setting) => setting.section === 'youtubeCache'),
+    [settingsFindAllQuery.data]
+  )
+
+  const parserSettings = useMemo(
+    () => (settingsFindAllQuery.data ?? []).filter((setting) => setting.section === 'parser'),
     [settingsFindAllQuery.data]
   )
 
@@ -59,19 +74,36 @@ const SettingsViewPage: FC = () => {
             <Grid spacing={2} container>
               <Grid xs={4} item>
                 <Paper sx={paper}>
+                  <SettingsForm loading={isLoading} onSubmit={handleSubmit} settings={appSettings} title="Приложение" />
+                </Paper>
+
+                <Paper sx={paper}>
+                  <SettingsForm loading={isLoading} onSubmit={handleSubmit} settings={parserSettings} title="Парсер" />
+                </Paper>
+
+                <Paper sx={paper}>
                   <SettingsForm
                     loading={isLoading}
                     onSubmit={handleSubmit}
-                    settings={invidiousSettings}
-                    title="Invidious"
+                    settings={apiKeysSettings}
+                    title="YOUTUBE API KEYS"
                   />
                 </Paper>
-              </Grid>
-              <Grid xs={4} item>
+
                 <Paper sx={paper}>
                   <Button variant="contained" color="error" onClick={handleResetCache} title="Сбросить кеш">
                     Сбросить кеш
                   </Button>
+                </Paper>
+              </Grid>
+              <Grid xs={4} item>
+                <Paper sx={paper}>
+                  <SettingsForm
+                    loading={isLoading}
+                    onSubmit={handleSubmit}
+                    settings={youtubeCacheSettings}
+                    title="Кеш Youtube API"
+                  />
                 </Paper>
               </Grid>
             </Grid>

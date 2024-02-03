@@ -14,6 +14,7 @@ import { MAX_QUOTA } from './constants'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 import { ProxyService } from '../proxy/proxy.service'
 import { ProxyEntity } from '../proxy/proxy.entity'
+import { SettingsService } from '../settings/settings.service'
 
 @Injectable()
 export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
@@ -21,7 +22,8 @@ export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
     @InjectRepository(YoutubeApikey) private readonly youtubeApikeyRepository: Repository<YoutubeApikey>,
     private readonly quotaUsageService: QuotaUsageService,
     private readonly proxyService: ProxyService,
-    private dataSource: DataSource
+    private dataSource: DataSource,
+    private readonly settingsService: SettingsService
   ) {
     super(youtubeApikeyRepository)
   }
@@ -77,28 +79,71 @@ export class YoutubeApikeyService extends SearchService<YoutubeApikey> {
   }
 
   public async createBulk(dto: CreateBulkYoutubeApikeyDto) {
+    type ProxyCountMapType = Record<string, { count: number; proxy: ProxyEntity }>
+
+    const apiKeysSettings = await this.settingsService.getApiKeysSettings()
+
     const { apikeys, comment, dailyLimit } = dto
+
     const proxies = await this.proxyService.findAll()
+
+    const proxyCountMap: ProxyCountMapType = {}
+    proxies.forEach((proxy) => {
+      proxyCountMap[`${proxy.ip}:${proxy.port}`] = { count: 0, proxy }
+    })
+
     const apiKeyEntities = await this.youtubeApikeyRepository.find({ relations: { proxies: true } })
+    apiKeyEntities.forEach((apiKey) => {
+      apiKey.proxies.forEach((proxy) => {
+        proxyCountMap[`${proxy.ip}:${[proxy.port]}`]['count'] += 1
+      })
+    })
 
-    const usedProxies = apiKeyEntities.reduce((acc: ProxyEntity[], item) => [...acc, ...item.proxies], [])
-    const usedProxyIds = usedProxies.map((proxy) => proxy.id)
+    let canUseProxy: ProxyCountMapType = Object.entries(proxyCountMap).reduce(
+      (acc, [ipPort, data]) => (data.count < apiKeysSettings.apiKeyPerProxyLimit ? { ...acc, [ipPort]: data } : acc),
+      {}
+    )
 
-    const unusedProxies = proxies.filter((proxy) => !usedProxyIds.includes(proxy.id))
-
-    if (unusedProxies.length < apikeys.length) {
-      throw new BadRequestException('Недостаточно свободных прокси')
+    const availableLimit = Object.values(canUseProxy).reduce(
+      (acc, item) => acc + apiKeysSettings.apiKeyPerProxyLimit - item.count,
+      0
+    )
+    if (availableLimit < apikeys.length) {
+      throw new BadRequestException(
+        `Недостаточно свободных прокси. Добавьте ${Math.ceil(
+          (apikeys.length - availableLimit) / apiKeysSettings.apiKeyPerProxyLimit
+        )} прокси`
+      )
     }
+
+    const proxyPerApiKey = apikeys.reduce((acc, item) => {
+      const { proxy } = Object.values(canUseProxy).find((item) => item.count < apiKeysSettings.apiKeyPerProxyLimit)
+      canUseProxy[`${proxy.ip}:${proxy.port}`]['count'] += 1
+      return { ...acc, [item]: proxy }
+    }, {})
 
     await Promise.all(
       apikeys.map(async (apikey) => {
-        return await this.create({ apikey, comment, dailyLimit }, proxies)
+        return await this.create({ apikey, comment, dailyLimit }, [proxyPerApiKey[apikey]])
       })
     )
   }
 
   public async update(id: number, dto: UpdateYoutubeApikeyDto) {
     return this.youtubeApikeyRepository.update(id, dto)
+  }
+
+  public async resetAllErrors() {
+    return this.youtubeApikeyRepository.update({}, { error: '', isActive: true })
+  }
+
+  public async resetQuotaErrors() {
+    const apiKeys = await this.youtubeApikeyRepository.find({ where: { error: 'quotaExceeded' } })
+    return await Promise.all(
+      apiKeys.map(async (apiKey) => {
+        return await this.youtubeApikeyRepository.save({ ...apiKey, error: '', isActive: true })
+      })
+    )
   }
 
   public async delete(id: number) {

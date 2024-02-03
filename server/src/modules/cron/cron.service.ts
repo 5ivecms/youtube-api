@@ -11,12 +11,12 @@ export class CronService {
     private readonly youtubeApikeyService: YoutubeApikeyService
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  @Cron('0 11 * * *', { timeZone: 'Europe/Moscow' })
   public async handleCron() {
     await this.quotaUsageService.addUsage({ currentUsage: 0 })
   }
 
-  @Cron('0 10 * * *')
+  @Cron('0 11 * * *', { timeZone: 'Europe/Moscow' })
   public async resetCurrentUsage() {
     await this.youtubeApikeyService.resetAllKeys()
   }

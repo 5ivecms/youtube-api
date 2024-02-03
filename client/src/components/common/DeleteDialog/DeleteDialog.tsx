@@ -7,11 +7,13 @@ interface DeleteDialogProps {
   open: boolean
   text: string
   title: string
+  confirmButtonText?: string
 }
 
 const DeleteDialog: FC<DeleteDialogProps> = ({
   title = 'Удаление',
   text = 'Точно удалить?',
+  confirmButtonText = 'Удалить',
   open,
   onClose,
   onConfirm,
@@ -25,7 +27,7 @@ const DeleteDialog: FC<DeleteDialogProps> = ({
       <DialogActions>
         <Button onClick={onClose}>Отмена</Button>
         <Button color="error" onClick={onConfirm} variant="contained" autoFocus>
-          Удалить
+          {confirmButtonText}
         </Button>
       </DialogActions>
     </Dialog>

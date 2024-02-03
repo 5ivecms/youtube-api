@@ -81,6 +81,18 @@ export class YoutubeApikeyController {
   }
 
   @UseGuards(AuthGuard(['jwt']))
+  @Post('reset-all-errors')
+  public resetErrors() {
+    return this.youtubeApikeyService.resetAllErrors()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
+  @Post('reset-quota-errors')
+  public resetQuotaErrors() {
+    return this.youtubeApikeyService.resetQuotaErrors()
+  }
+
+  @UseGuards(AuthGuard(['jwt']))
   @Patch(':id')
   public update(@Body() dto: UpdateYoutubeApikeyDto, @Param('id') id: number) {
     return this.youtubeApikeyService.update(+id, dto)

@@ -3,6 +3,7 @@ import { Box, Button, Chip } from '@mui/material'
 import { createColumnHelper } from '@tanstack/react-table'
 import { useSnackbar } from 'notistack'
 import { useEffect, useState } from 'react'
+import { CSVLink } from 'react-csv'
 
 import { DeleteDialog } from '../../../components/common'
 import { DataGrid } from '../../../components/common/DataGrid'
@@ -83,7 +84,11 @@ const YoutubeApiKeyIndexPage = () => {
   const { enqueueSnackbar } = useSnackbar()
   const relations = getRelations(filters)
 
+  const allKeys = YoutubeApikeyService.useFindAllQuery()
+
   const [showClearDialog, setShowClearDialog] = useState<boolean>(false)
+  const [showResetAllErrorsDialog, setShowResetAllErrorsDialog] = useState<boolean>(false)
+  const [showResetQuotaErrorsDialog, setShowResetQuotaErrorsDialog] = useState<boolean>(false)
 
   const [params, setParams] = useState<SearchQueryParams<YoutubeApikeyModel>>({ relations })
 
@@ -91,6 +96,8 @@ const YoutubeApiKeyIndexPage = () => {
   const [deleteApiKey, youtubeApikeyDeleteQuery] = YoutubeApikeyService.useDeleteMutation()
   const [deleteBulkApiKeys, youtubeApikeysDeleteBulkQuery] = YoutubeApikeyService.useDeleteBulkMutation()
   const [clearApiKeys, apiKeysClearQuery] = YoutubeApikeyService.useClearMutation()
+  const [resetAllErrors, resetAllErrorsQuery] = YoutubeApikeyService.useResetAllErrorsMutation()
+  const [resetQuotaErrors, resetQuotaErrorsQuery] = YoutubeApikeyService.useResetQuotaErrorsMutation()
 
   const items = apiKeySearchQuery.data?.items ?? []
   const tableIsLoading =
@@ -107,6 +114,16 @@ const YoutubeApiKeyIndexPage = () => {
   const confirmClear = (): void => {
     clearApiKeys()
     setShowClearDialog(false)
+  }
+
+  const confirmResetAllErrors = (): void => {
+    resetAllErrors()
+    setShowResetAllErrorsDialog(false)
+  }
+
+  const confirmResetQuotaErrors = (): void => {
+    resetQuotaErrors()
+    setShowResetQuotaErrorsDialog(false)
   }
 
   const onChangePage = (newPage: number): void => {
@@ -157,12 +174,43 @@ const YoutubeApiKeyIndexPage = () => {
       return
     }
     if (youtubeApikeysDeleteBulkQuery.isError) {
-      enqueueSnackbar((youtubeApikeysDeleteBulkQuery.error as ANY).data.message, {
-        variant: 'error',
-      })
+      enqueueSnackbar((youtubeApikeysDeleteBulkQuery.error as ANY).data.message, { variant: 'error' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [youtubeApikeysDeleteBulkQuery.isLoading])
+
+  useEffect(() => {
+    if (resetAllErrorsQuery.isSuccess) {
+      enqueueSnackbar('Ошибки сброшены', { variant: 'success' })
+      return
+    }
+    if (resetAllErrorsQuery.isError) {
+      enqueueSnackbar((resetAllErrorsQuery.error as ANY).data.message, { variant: 'error' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetAllErrorsQuery.isLoading])
+
+  useEffect(() => {
+    if (resetQuotaErrorsQuery.isSuccess) {
+      enqueueSnackbar('Ошибки квоты сброшены', { variant: 'success' })
+      return
+    }
+    if (resetQuotaErrorsQuery.isError) {
+      enqueueSnackbar((resetQuotaErrorsQuery.error as ANY).data.message, { variant: 'error' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetQuotaErrorsQuery.isLoading])
+
+  useEffect(() => {
+    if (apiKeysClearQuery.isSuccess) {
+      enqueueSnackbar('Api keys удалены', { variant: 'success' })
+      return
+    }
+    if (apiKeysClearQuery.isError) {
+      enqueueSnackbar((apiKeysClearQuery.error as ANY).data.message, { variant: 'error' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKeysClearQuery.isLoading])
 
   const orderOptions: OrderOptions<YoutubeApikeyModel> = {
     order: params?.order ?? 'asc',
@@ -188,6 +236,13 @@ const YoutubeApiKeyIndexPage = () => {
       <PageHeader
         right={
           <Box sx={actionButtons}>
+            <CSVLink data={allKeys?.data ?? []}>Скачать все ключи</CSVLink>
+            <Button color="error" variant="contained" onClick={() => setShowResetAllErrorsDialog(true)}>
+              Сбросить все ошибки
+            </Button>
+            <Button color="error" variant="contained" onClick={() => setShowResetQuotaErrorsDialog(true)}>
+              Сбросить ошибки квоты
+            </Button>
             <Button color="error" endIcon={<Delete />} variant="contained" onClick={() => setShowClearDialog(true)}>
               Удалить все
             </Button>
@@ -196,7 +251,6 @@ const YoutubeApiKeyIndexPage = () => {
         }
         title="Youtube API KEYS"
       />
-
       <DataGrid
         columns={columns}
         items={items}
@@ -208,13 +262,28 @@ const YoutubeApiKeyIndexPage = () => {
         orderOptions={orderOptions}
         filterOptions={filterOptions}
       />
-
       <DeleteDialog
         onClose={() => setShowClearDialog(false)}
         open={showClearDialog}
         onConfirm={confirmClear}
         text="Точно удалить все API KEYS?"
         title="Удалить все API KEYS"
+      />
+      <DeleteDialog
+        onClose={() => setShowResetAllErrorsDialog(false)}
+        open={showResetAllErrorsDialog}
+        onConfirm={confirmResetAllErrors}
+        text="Точно сбросить все ошибки?"
+        title="Сбросить все ошибки"
+        confirmButtonText="Сбросить"
+      />
+      <DeleteDialog
+        onClose={() => setShowResetQuotaErrorsDialog(false)}
+        open={showResetQuotaErrorsDialog}
+        onConfirm={confirmResetQuotaErrors}
+        text="Точно сбросить ошибки квоты?"
+        title="Сбросить ошибки квоты"
+        confirmButtonText="Сбросить"
       />
     </AdminLayout>
   )

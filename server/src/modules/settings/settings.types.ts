@@ -10,3 +10,11 @@ export type InvidiousSettings = {
   timeout: number
   api: boolean
 }
+
+export type AppSettings = {
+  enabled: boolean
+}
+
+export type ApiKeysSettings = {
+  apiKeyPerProxyLimit: number
+}
