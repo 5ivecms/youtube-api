@@ -4,6 +4,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager'
 import { Cache } from 'cache-manager'
 import { format, register } from 'timeago.js'
 import ruLocale from 'timeago.js/lib/lang/ru'
+import { HttpsProxyAgent } from 'hpagent'
 
 import { YoutubeApikeyService } from './youtube-apikey.service'
 import { AVAILABLE_CATEGORY_IDS, QuotaCosts, YTApiEndpoints } from './constants'
@@ -35,7 +36,6 @@ import { convertDurationToSeconds, convertTimeToFormat, getDurationParts } from 
 import { VideoBlacklistService } from '../video-blacklist/video-blacklist.service'
 import { SafeWordService } from '../safe-word/safe-word.service'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
-import { HttpsProxyAgent } from 'hpagent'
 import { YoutubeApikey } from './youtube-apikey.entity'
 import { SettingsService } from '../settings/settings.service'
 
@@ -90,7 +90,11 @@ export class YoutubeApiService {
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.SEARCH_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.SEARCH_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -98,7 +102,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -106,9 +110,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.SEARCH_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.SEARCH_LIST })
       }
     }
 
@@ -148,10 +149,15 @@ export class YoutubeApiService {
           regionCode: 'RU',
           hl: 'ru_RU',
         })
+
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -159,7 +165,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -167,9 +173,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_CATEGORIES_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_CATEGORIES_LIST })
       }
     }
 
@@ -220,7 +223,11 @@ export class YoutubeApiService {
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -228,7 +235,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -236,9 +243,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
     }
 
@@ -306,7 +310,11 @@ export class YoutubeApiService {
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -314,7 +322,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -322,9 +330,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
     }
 
@@ -385,10 +390,15 @@ export class YoutubeApiService {
           regionCode: 'RU',
           hl: 'ru_RU',
         })
+
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -396,7 +406,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -404,9 +414,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
     }
 
@@ -468,9 +475,7 @@ export class YoutubeApiService {
         )
 
         if (!uploadsPlaylist) {
-          await this.youtubeApikeyService.updateCurrentUsage(apiKey, 2)
-          await this.quotaUsageService.addUsage({ currentUsage: 2 })
-
+          await this.updateQuota(apiKey, 1)
           throw new NotFoundException('Uploads playlist not found')
         }
 
@@ -483,7 +488,11 @@ export class YoutubeApiService {
         if (playlistResponse.data) {
           result = playlistResponse.data
         }
+
+        await this.updateQuota(apiKey, 2)
       } catch (e) {
+        await this.updateQuota(apiKey, 2)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -491,7 +500,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -499,9 +508,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, 2)
-        await this.quotaUsageService.addUsage({ currentUsage: 2 })
       }
     }
 
@@ -547,10 +553,15 @@ export class YoutubeApiService {
           maxResults: 50,
           playlistId: dto.playlistId,
         })
+
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -558,7 +569,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -566,9 +577,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.PLAYLIST_ITEMS_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.PLAYLIST_ITEMS_LIST })
       }
     }
 
@@ -619,7 +627,11 @@ export class YoutubeApiService {
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -627,7 +639,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -635,9 +647,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.COMMENTS_THREADS_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.COMMENTS_THREADS_LIST })
       }
     }
 
@@ -685,7 +694,11 @@ export class YoutubeApiService {
         if (response.data) {
           result = response.data
         }
+
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
       } catch (e) {
+        await this.updateQuota(apiKey, QuotaCosts.VIDEO_LIST)
+
         if (this.isQuotaError(e)) {
           await this.setError(apiKey.id, e)
           continue
@@ -693,7 +706,7 @@ export class YoutubeApiService {
 
         if (e?.response?.data?.error?.code === 403) {
           await this.setError(apiKey.id, e)
-          continue
+          break
         }
 
         if (e?.response?.data?.error?.code === 404) {
@@ -701,9 +714,6 @@ export class YoutubeApiService {
         }
 
         throw new BadRequestException()
-      } finally {
-        await this.youtubeApikeyService.updateCurrentUsage(apiKey, QuotaCosts.VIDEO_LIST)
-        await this.quotaUsageService.addUsage({ currentUsage: QuotaCosts.VIDEO_LIST })
       }
     }
 
@@ -794,5 +804,10 @@ export class YoutubeApiService {
   private async setCacheVideoById(video: Video) {
     const settings = await this.settingsService.getYoutubeCacheSettings()
     await this.cacheService.set(CacheKeys.videoById(video.id), video, settings.videoById * 86400000)
+  }
+
+  private async updateQuota(apiKey: YoutubeApikey, cost: number) {
+    await this.youtubeApikeyService.updateCurrentUsage(apiKey, cost)
+    await this.quotaUsageService.addUsage({ currentUsage: cost })
   }
 }
