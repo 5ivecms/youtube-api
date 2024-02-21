@@ -11,11 +11,13 @@ import { SafeWordModule } from '../safe-word/safe-word.module'
 import { QuotaUsageModule } from '../quota-usage/quota-usage.module'
 import { ProxyModule } from '../proxy/proxy.module'
 import { SettingsModule } from '../settings/settings.module'
+import { ChannelBlacklistModule } from '../channel-blacklist/channel-blacklist.module'
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([YoutubeApikey]),
     VideoBlacklistModule,
+    ChannelBlacklistModule,
     SafeWordModule,
     QuotaUsageModule,
     ProxyModule,

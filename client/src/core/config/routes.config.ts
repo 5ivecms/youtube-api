@@ -71,4 +71,11 @@ export const browseRoutes = {
     index: (): string => `/video-blacklist`,
     view: (id: number | string = ':id'): string => `/video-blacklist/view/${id}`,
   },
+
+  channelBlacklist: {
+    create: (): string => `/channel-blacklist/create`,
+    edit: (id: number | string = ':id'): string => `/channel-blacklist/edit/${id}`,
+    index: (): string => `/channel-blacklist`,
+    view: (id: number | string = ':id'): string => `/channel-blacklist/view/${id}`,
+  },
 }

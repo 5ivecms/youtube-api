@@ -38,6 +38,7 @@ import { SafeWordService } from '../safe-word/safe-word.service'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 import { YoutubeApikey } from './youtube-apikey.entity'
 import { SettingsService } from '../settings/settings.service'
+import { ChannelBlacklistService } from '../channel-blacklist/channel-blacklist.service'
 
 register('ru', ruLocale)
 
@@ -49,6 +50,7 @@ export class YoutubeApiService {
     @Inject(CACHE_MANAGER) private cacheService: Cache,
     private readonly youtubeApikeyService: YoutubeApikeyService,
     private readonly videoBlacklistService: VideoBlacklistService,
+    private readonly channelBlacklistService: ChannelBlacklistService,
     private readonly safeWordsService: SafeWordService,
     private readonly quotaUsageService: QuotaUsageService,
     private readonly settingsService: SettingsService
@@ -270,6 +272,11 @@ export class YoutubeApiService {
       viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
     }
 
+    const isChannelInBlacklist = await this.channelBlacklistService.inBlacklist(video.channelId)
+    if (isChannelInBlacklist) {
+      throw new NotFoundException('Video not found')
+    }
+
     await this.setCacheVideoById(video)
 
     return video
@@ -280,6 +287,7 @@ export class YoutubeApiService {
 
     const ids = dto.videoId.split(',').map((id) => id.trim())
 
+    // Добавить проверку видео на наличие в блеклисте
     const cachedVideos = (
       await Promise.all(
         ids.map(async (id) => {
@@ -339,23 +347,27 @@ export class YoutubeApiService {
 
     const parserSettings = await this.settingsService.getParserSettings()
 
-    const videos: Video[] = result.items.map((item) => {
-      return {
-        id: item.id,
-        title: item.snippet.title,
-        description: parserSettings.saveVideoDescription ? item.snippet.description : '',
-        channelId: item.snippet.channelId,
-        channelTitle: item.snippet.channelTitle,
-        publishedAt: item.snippet.publishedAt,
-        duration: item.contentDetails.duration,
-        durationSec: convertDurationToSeconds(item.contentDetails.duration),
-        durationParts: getDurationParts(item.contentDetails.duration),
-        readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-        timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-        views: Number(item.statistics.viewCount),
-        viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
-      }
-    })
+    const channelsBlacklist = await this.channelBlacklistService.blacklist()
+
+    const videos: Video[] = result.items
+      .filter((item) => !channelsBlacklist.includes(item.snippet.channelId))
+      .map((item) => {
+        return {
+          id: item.id,
+          title: item.snippet.title,
+          description: parserSettings.saveVideoDescription ? item.snippet.description : '',
+          channelId: item.snippet.channelId,
+          channelTitle: item.snippet.channelTitle,
+          publishedAt: item.snippet.publishedAt,
+          duration: item.contentDetails.duration,
+          durationSec: convertDurationToSeconds(item.contentDetails.duration),
+          durationParts: getDurationParts(item.contentDetails.duration),
+          readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+          timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+          views: Number(item.statistics.viewCount),
+          viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+        }
+      })
 
     await Promise.all(
       videos.map(async (video) => {
@@ -449,6 +461,11 @@ export class YoutubeApiService {
 
   public async videoByChannelId(dto: YoutubeApiVideoByChannelIdDto): Promise<Video[]> {
     await this.checkAppOnline()
+
+    const isChannelInBlacklist = await this.channelBlacklistService.inBlacklist(dto.channelId)
+    if (isChannelInBlacklist) {
+      throw new NotFoundException('Канал не найден')
+    }
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
@@ -603,6 +620,11 @@ export class YoutubeApiService {
 
   public async comments(dto: YoutubeApiCommentsDto): Promise<Comment[]> {
     await this.checkAppOnline()
+
+    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
+    if (blackList.includes(dto.videoId)) {
+      return []
+    }
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 

@@ -25,6 +25,7 @@ import { QuotaUsageModule } from './modules/quota-usage/quota-usage.module'
 import { DataSource } from 'typeorm'
 import { CronModule } from './modules/cron/cron.module'
 import { ScheduleModule } from '@nestjs/schedule'
+import { ChannelBlacklistModule } from './modules/channel-blacklist/channel-blacklist.module'
 
 const ENV = process.env.NODE_ENV ?? 'development'
 
@@ -98,6 +99,7 @@ const ENV = process.env.NODE_ENV ?? 'development'
     ApiKeyModule,
     YoutubeModule,
     VideoBlacklistModule,
+    ChannelBlacklistModule,
     QuotaUsageModule,
     CronModule,
   ],

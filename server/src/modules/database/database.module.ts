@@ -14,6 +14,7 @@ import { ApiKeyEntity } from '../api-key/api-key.entity'
 import { YoutubeApikey } from '../youtube/youtube-apikey.entity'
 import { VideoBlacklistEntity } from '../video-blacklist/video-blacklist.entity'
 import { QuotaUsageEntity } from '../quota-usage/quota-usage.entity'
+import { ChannelBlacklistEntity } from '../channel-blacklist/channel-blacklist.entity'
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { QuotaUsageEntity } from '../quota-usage/quota-usage.entity'
           YoutubeApikey,
           VideoBlacklistEntity,
           QuotaUsageEntity,
+          ChannelBlacklistEntity,
         ],
         synchronize: true,
       }),

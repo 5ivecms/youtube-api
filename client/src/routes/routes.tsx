@@ -3,6 +3,12 @@ import { ReactElement } from 'react'
 import { browseRoutes } from '../core/config/routes.config'
 import { ApiKeyCreatePage, ApiKeyEditPage, ApiKeyIndexPage, ApiKeyViewPage } from '../pages/apiKey'
 import { LoginPage } from '../pages/auth'
+import {
+  ChannelBlacklistCreatePage,
+  ChannelBlacklistEditPage,
+  ChannelBlacklistIndexPage,
+  ChannelBlacklistViewPage,
+} from '../pages/channel-blacklist'
 import { DomainCreatePage, DomainEditPage, DomainIndexPage, DomainViewPage } from '../pages/domain'
 import { InvidiousCreatePage, InvidiousEditPage, InvidiousIndexPage, InvidiousViewPage } from '../pages/invidious'
 import { HomePage, NotFoundPage } from '../pages/main'
@@ -233,5 +239,27 @@ export const routes: AppRoute[] = [
     element: <VideoBlacklistViewPage />,
     private: true,
     path: browseRoutes.videoBlacklist.view(),
+  },
+
+  // Черный список каналов
+  {
+    element: <ChannelBlacklistIndexPage />,
+    private: true,
+    path: browseRoutes.channelBlacklist.index(),
+  },
+  {
+    element: <ChannelBlacklistCreatePage />,
+    private: true,
+    path: browseRoutes.channelBlacklist.create(),
+  },
+  {
+    element: <ChannelBlacklistEditPage />,
+    private: true,
+    path: browseRoutes.channelBlacklist.edit(),
+  },
+  {
+    element: <ChannelBlacklistViewPage />,
+    private: true,
+    path: browseRoutes.channelBlacklist.view(),
   },
 ]

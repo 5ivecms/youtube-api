@@ -106,6 +106,18 @@ export const apiRoutes = {
     update: (id: number): string => `/video-blacklist/${id}`,
   },
 
+  channelBlacklist: {
+    clear: (): string => `/channel-blacklist/clear`,
+    create: (): string => `/channel-blacklist`,
+    createBulk: (): string => `/channel-blacklist/create-bulk`,
+    delete: (id: number): string => `/channel-blacklist/${id}`,
+    deleteBulk: (): string => `/channel-blacklist/delete-bulk`,
+    findAll: (): string => '/channel-blacklist',
+    findOne: (id: number): string => `/channel-blacklist/${id}`,
+    search: (): string => '/channel-blacklist/search',
+    update: (id: number): string => `/channel-blacklist/${id}`,
+  },
+
   quotaUsage: {
     findAll: (): string => `/quota-usage`,
     byPeriod: (): string => `/quota-usage/by-period`,

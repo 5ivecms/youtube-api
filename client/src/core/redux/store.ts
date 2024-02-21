@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { UserService } from '../services'
 import { ApiKeyService } from '../services/apiKey'
 import { AuthService } from '../services/auth'
+import { ChannelBlacklistService } from '../services/channel-blacklist'
 import { DomainService } from '../services/domain'
 import { InvidiousService } from '../services/invidious'
 import { ProxyService } from '../services/proxy'
@@ -32,6 +33,7 @@ export const store = configureStore({
     [ApiKeyService.reducerPath]: ApiKeyService.reducer,
     [YoutubeApikeyService.reducerPath]: YoutubeApikeyService.reducer,
     [VideoBlacklistService.reducerPath]: VideoBlacklistService.reducer,
+    [ChannelBlacklistService.reducerPath]: ChannelBlacklistService.reducer,
     [QuotaUsageService.reducerPath]: QuotaUsageService.reducer,
     auth,
   },
@@ -48,6 +50,7 @@ export const store = configureStore({
     ApiKeyService.middleware,
     YoutubeApikeyService.middleware,
     VideoBlacklistService.middleware,
+    ChannelBlacklistService.middleware,
     QuotaUsageService.middleware,
   ],
 })
