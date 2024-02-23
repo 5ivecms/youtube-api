@@ -62,7 +62,10 @@ export class YoutubeApiService {
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
     const safeWords = await this.safeWordsService.getAllSafeWords()
-    if (safeWords.includes(dto.q)) {
+    const isBad =
+      safeWords.filter((phrase) => dto.q.toLocaleLowerCase().indexOf(phrase.toLocaleLowerCase()) !== -1).length > 0
+
+    if (isBad) {
       return []
     }
 
