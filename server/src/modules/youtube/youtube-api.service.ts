@@ -1,10 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import axios, { AxiosResponse } from 'axios'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
-import { Cache } from 'cache-manager'
 import { format, register } from 'timeago.js'
 import ruLocale from 'timeago.js/lib/lang/ru'
 import { HttpsProxyAgent } from 'hpagent'
+import { InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 
 import { YoutubeApikeyService } from './youtube-apikey.service'
 import { AVAILABLE_CATEGORY_IDS, QuotaCosts, YTApiEndpoints } from './constants'
@@ -47,7 +47,7 @@ register('ru', ruLocale)
 @Injectable()
 export class YoutubeApiService {
   constructor(
-    @Inject(CACHE_MANAGER) private cacheService: Cache,
+    @InjectRedis('youtube-api') private readonly redis: Redis,
     private readonly youtubeApikeyService: YoutubeApikeyService,
     private readonly videoBlacklistService: VideoBlacklistService,
     private readonly channelBlacklistService: ChannelBlacklistService,
@@ -69,7 +69,7 @@ export class YoutubeApiService {
       return []
     }
 
-    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.search(dto.q))
+    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.search(dto.q))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -130,7 +130,7 @@ export class YoutubeApiService {
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.cacheService.set(CacheKeys.search(dto.q), videos, settings.search * 86400000)
+    await this.setRedisCache(CacheKeys.search(dto.q), videos, settings.search)
 
     return videos
   }
@@ -139,7 +139,7 @@ export class YoutubeApiService {
     const settings = await this.settingsService.getYoutubeCacheSettings()
     await this.checkAppOnline()
 
-    const cachedVideo = await this.cacheService.get<Category[]>(CacheKeys.categories())
+    const cachedVideo = await this.getRedisCache<Category[]>(CacheKeys.categories())
     if (cachedVideo) {
       return cachedVideo
     }
@@ -191,7 +191,7 @@ export class YoutubeApiService {
       return []
     }
 
-    await this.cacheService.set(CacheKeys.categories(), categories, settings.categories * 86400000)
+    await this.setRedisCache(CacheKeys.categories(), categories, settings.categories)
 
     return categories
   }
@@ -208,7 +208,7 @@ export class YoutubeApiService {
       throw new NotFoundException()
     }
 
-    const cachedVideo = await this.cacheService.get<Video>(CacheKeys.videoById(videoId))
+    const cachedVideo = await this.getRedisCache<Video>(CacheKeys.videoById(videoId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -294,10 +294,10 @@ export class YoutubeApiService {
     const cachedVideos = (
       await Promise.all(
         ids.map(async (id) => {
-          return await this.cacheService.get<Video>(CacheKeys.videoById(id))
+          return await this.getRedisCache<Video>(CacheKeys.videoById(id))
         })
       )
-    ).filter((video) => video !== undefined)
+    ).filter((video) => video !== null)
 
     const cachedVideoIds = cachedVideos.map((video) => video.id)
     const nonCachedVideoIds = ids.filter((id) => !cachedVideoIds.includes(id))
@@ -386,7 +386,7 @@ export class YoutubeApiService {
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
-    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByCategoryId(dto.categoryId))
+    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.videoByCategoryId(dto.categoryId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -441,11 +441,7 @@ export class YoutubeApiService {
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.cacheService.set(
-      CacheKeys.videoByCategoryId(dto.categoryId),
-      videos,
-      settings.videoByCategoryId * 86400000
-    )
+    await this.setRedisCache(CacheKeys.videoByCategoryId(dto.categoryId), videos, settings.videoByCategoryId)
 
     return videos
   }
@@ -472,7 +468,7 @@ export class YoutubeApiService {
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
-    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByChannelId(dto.channelId))
+    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.videoByChannelId(dto.channelId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -547,7 +543,7 @@ export class YoutubeApiService {
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.cacheService.set(CacheKeys.videoByChannelId(dto.channelId), videos, settings.videoByChannelId * 86400000)
+    await this.setRedisCache(CacheKeys.videoByChannelId(dto.channelId), videos, settings.videoByChannelId)
 
     return videos.slice(0, 20)
   }
@@ -557,7 +553,7 @@ export class YoutubeApiService {
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
-    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.videoByPlaylistId(dto.playlistId))
+    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.videoByPlaylistId(dto.playlistId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -612,11 +608,7 @@ export class YoutubeApiService {
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.cacheService.set(
-      CacheKeys.videoByPlaylistId(dto.playlistId),
-      videos,
-      settings.videoByPlaylistId * 86400000
-    )
+    await this.setRedisCache(CacheKeys.videoByPlaylistId(dto.playlistId), videos, settings.videoByPlaylistId)
 
     return videos
   }
@@ -631,7 +623,7 @@ export class YoutubeApiService {
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
-    const cachedVideo = await this.cacheService.get<Comment[]>(CacheKeys.comments(dto.videoId))
+    const cachedVideo = await this.getRedisCache<Comment[]>(CacheKeys.comments(dto.videoId))
     if (cachedVideo) {
       return cachedVideo
     }
@@ -687,7 +679,7 @@ export class YoutubeApiService {
       timeAgo: format(new Date(item.snippet.topLevelComment.snippet.publishedAt), 'ru'),
     }))
 
-    await this.cacheService.set(CacheKeys.comments(dto.videoId), comments, settings.videoComments * 86400000)
+    await this.setRedisCache(CacheKeys.comments(dto.videoId), comments, settings.videoComments)
 
     return comments.slice(0, 50)
   }
@@ -697,7 +689,7 @@ export class YoutubeApiService {
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
-    const cachedVideo = await this.cacheService.get<Video[]>(CacheKeys.trends())
+    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.trends())
     if (cachedVideo) {
       return cachedVideo
     }
@@ -751,7 +743,7 @@ export class YoutubeApiService {
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.cacheService.set(CacheKeys.trends(), videos, settings.trends * 86400000)
+    await this.setRedisCache(CacheKeys.trends(), videos, settings.trends)
 
     return videos
   }
@@ -761,7 +753,7 @@ export class YoutubeApiService {
 
     const settings = await this.settingsService.getYoutubeCacheSettings()
 
-    const cachedData = await this.cacheService.get<CategoryWithVideos[]>(CacheKeys.categoriesWithVideos())
+    const cachedData = await this.getRedisCache<CategoryWithVideos[]>(CacheKeys.categoriesWithVideos())
     if (cachedData) {
       return cachedData
     }
@@ -781,7 +773,7 @@ export class YoutubeApiService {
       return []
     }
 
-    await this.cacheService.set(CacheKeys.categoriesWithVideos(), data, settings.categoriesWithVideos * 86400000)
+    await this.setRedisCache(CacheKeys.categoriesWithVideos(), data, settings.categoriesWithVideos)
 
     return data
   }
@@ -828,11 +820,24 @@ export class YoutubeApiService {
 
   private async setCacheVideoById(video: Video) {
     const settings = await this.settingsService.getYoutubeCacheSettings()
-    await this.cacheService.set(CacheKeys.videoById(video.id), video, settings.videoById * 86400000)
+    await this.setRedisCache(CacheKeys.videoById(video.id), video, settings.videoById)
   }
 
   private async updateQuota(apiKey: YoutubeApikey, cost: number) {
     await this.youtubeApikeyService.updateCurrentUsage(apiKey, cost)
     await this.quotaUsageService.addUsage({ currentUsage: cost })
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, days: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'EX', days * 86_400)
   }
 }

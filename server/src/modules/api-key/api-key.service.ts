@@ -2,9 +2,9 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { DeleteResult, FindOptionsWhere, Repository } from 'typeorm'
 import { randomBytes } from 'crypto'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
-import { Cache } from 'cache-manager'
 import { ConfigService } from '@nestjs/config'
+import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 
 import { ApiKeyEntity } from './api-key.entity'
 import { SearchService } from '../../common/services/search-service/search.service'
@@ -15,28 +15,28 @@ import { CacheConfig } from '../../config/cache.config'
 @Injectable()
 export class ApiKeyService extends SearchService<ApiKeyEntity> {
   constructor(
+    @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
     @InjectRepository(ApiKeyEntity) private readonly apiKeyRepository: Repository<ApiKeyEntity>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService
   ) {
     super(apiKeyRepository)
   }
 
   public async findAll(): Promise<ApiKeyEntity[]> {
-    const apiKeysCache = await this.cacheManager.get<ApiKeyEntity[]>(API_KEY_CACHE_KEY)
+    const apiKeysCache = await this.getRedisCache<ApiKeyEntity[]>(API_KEY_CACHE_KEY)
     if (apiKeysCache) {
       return apiKeysCache
     }
 
     const { apiKeyCacheTtl } = this.configService.get<CacheConfig>('cache')
     const apiKeys = await this.apiKeyRepository.find()
-    await this.cacheManager.set(API_KEY_CACHE_KEY, apiKeys, apiKeyCacheTtl)
+    await this.setRedisCache(API_KEY_CACHE_KEY, apiKeys, apiKeyCacheTtl)
 
     return apiKeys
   }
 
   public async findOne(id: number): Promise<ApiKeyEntity> {
-    const apiKeyCache = await this.cacheManager.get<ApiKeyEntity>(getApiKeyСompositeCacheKey(id))
+    const apiKeyCache = await this.getRedisCache<ApiKeyEntity>(getApiKeyСompositeCacheKey(id))
     if (apiKeyCache) {
       return apiKeyCache
     }
@@ -48,13 +48,13 @@ export class ApiKeyService extends SearchService<ApiKeyEntity> {
     }
 
     const { apiKeyCacheTtl } = this.configService.get<CacheConfig>('cache')
-    await this.cacheManager.set(getApiKeyСompositeCacheKey(id), apiKey, apiKeyCacheTtl)
+    await this.setRedisCache(getApiKeyСompositeCacheKey(id), apiKey, apiKeyCacheTtl)
 
     return apiKey
   }
 
   public async findOneByApiKey(apiKey: string): Promise<ApiKeyEntity> {
-    const apiKeyCache = await this.cacheManager.get<ApiKeyEntity>(getApiKeyСompositeCacheKey(`api-key-${apiKey}`))
+    const apiKeyCache = await this.getRedisCache<ApiKeyEntity>(getApiKeyСompositeCacheKey(`api-key-${apiKey}`))
     if (apiKeyCache) {
       return apiKeyCache
     }
@@ -66,7 +66,7 @@ export class ApiKeyService extends SearchService<ApiKeyEntity> {
     }
 
     const { apiKeyCacheTtl } = this.configService.get<CacheConfig>('cache')
-    await this.cacheManager.set(getApiKeyСompositeCacheKey(`api-key-${apiKey}`), apiKeyEntity, apiKeyCacheTtl)
+    await this.setRedisCache(getApiKeyСompositeCacheKey(`api-key-${apiKey}`), apiKeyEntity, apiKeyCacheTtl)
 
     return apiKeyEntity
   }
@@ -115,13 +115,21 @@ export class ApiKeyService extends SearchService<ApiKeyEntity> {
   }
 
   public async clearCache() {
-    const keys: string[] = await this.cacheManager.store.keys()
-    await Promise.all(
-      keys.map(async (key) => {
-        if (key.startsWith(API_KEY_CACHE_KEY)) {
-          await this.cacheManager.del(key)
-        }
-      })
-    )
+    const apiKeys = await this.apiKeyRepository.find()
+    const keys = apiKeys.map(({ id }) => getApiKeyСompositeCacheKey(id))
+    await this.redis.del(API_KEY_CACHE_KEY, ...keys)
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'PX', ttl)
   }
 }

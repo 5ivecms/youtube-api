@@ -1,8 +1,8 @@
 import { Injectable, Inject, InternalServerErrorException, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
-import { Cache } from 'cache-manager'
+import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 
 import { SafeWordEntity } from './safe-word.entity'
@@ -14,22 +14,22 @@ import { CacheConfig } from '../../config/cache.config'
 @Injectable()
 export class SafeWordService extends SearchService<SafeWordEntity> {
   constructor(
+    @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
     @InjectRepository(SafeWordEntity) private readonly safeWordRepository: Repository<SafeWordEntity>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService
   ) {
     super(safeWordRepository)
   }
 
   public async findAll(): Promise<SafeWordEntity[]> {
-    const safeWordsCache = await this.cacheManager.get<SafeWordEntity[]>(SAFE_WORD_CACHE_KEY)
+    const safeWordsCache = await this.getRedisCache<SafeWordEntity[]>(SAFE_WORD_CACHE_KEY)
     if (safeWordsCache) {
       return safeWordsCache
     }
 
     const { safeWordsCacheTtl } = this.configService.get<CacheConfig>('cache')
     const safeWords = await this.safeWordRepository.find()
-    await this.cacheManager.set(SAFE_WORD_CACHE_KEY, safeWords, safeWordsCacheTtl)
+    await this.setRedisCache(SAFE_WORD_CACHE_KEY, safeWords, safeWordsCacheTtl)
 
     return safeWords
   }
@@ -40,7 +40,7 @@ export class SafeWordService extends SearchService<SafeWordEntity> {
   }
 
   public async findOne(id: number) {
-    const safeWordCache = await this.cacheManager.get<SafeWordEntity>(getSafeWordСompositeCacheKey(id))
+    const safeWordCache = await this.getRedisCache<SafeWordEntity>(getSafeWordСompositeCacheKey(id))
     if (safeWordCache) {
       return safeWordCache
     }
@@ -52,7 +52,7 @@ export class SafeWordService extends SearchService<SafeWordEntity> {
     }
 
     const { safeWordsCacheTtl } = this.configService.get<CacheConfig>('cache')
-    await this.cacheManager.set(getSafeWordСompositeCacheKey(id), entity, safeWordsCacheTtl)
+    await this.setRedisCache(getSafeWordСompositeCacheKey(id), entity, safeWordsCacheTtl)
 
     return entity
   }
@@ -101,13 +101,20 @@ export class SafeWordService extends SearchService<SafeWordEntity> {
   }
 
   public async clearCache() {
-    const keys: string[] = await this.cacheManager.store.keys()
-    await Promise.all(
-      keys.map(async (key) => {
-        if (key.startsWith(SAFE_WORD_CACHE_KEY)) {
-          await this.cacheManager.del(key)
-        }
-      })
-    )
+    const keys = await this.redis.keys(`${SAFE_WORD_CACHE_KEY}*`)
+    await this.redis.del(...keys)
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'PX', ttl)
   }
 }

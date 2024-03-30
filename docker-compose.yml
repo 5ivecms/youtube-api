@@ -33,6 +33,8 @@ services:
 
   redis:
     container_name: youtube-api-redis
+    ports:
+        - 6379:6379
     image: redis:6.2-alpine
     restart: always
     command:
@@ -47,6 +49,27 @@ services:
     volumes:
       - ./redis/data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - youtube-api-network
+
+  redis2:
+    container_name: youtube-api-redis-2
+    ports:
+      - 6377:6377
+    image: redis:6.2-alpine
+    restart: always
+    command:
+      [
+        "redis-server",
+        "/usr/local/etc/redis/redis.conf",
+        "--bind",
+        "redis2",
+        "--port",
+        "6377",
+      ]
+    volumes:
+      - ./redis2/data:/data
+      - ./redis2/redis.conf:/usr/local/etc/redis/redis.conf
     networks:
       - youtube-api-network
 

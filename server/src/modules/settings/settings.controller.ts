@@ -17,12 +17,6 @@ export class SettingsController {
   }
 
   @UseGuards(AuthGuard(['jwt']))
-  @Get('invidious-settings')
-  public getInvidiousSettings() {
-    return this.settingsService.getInvidiousSettings()
-  }
-
-  @UseGuards(AuthGuard(['jwt']))
   @Get('app-settings')
   public getAppSettings() {
     return this.settingsService.getAppSettings()

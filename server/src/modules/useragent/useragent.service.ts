@@ -1,8 +1,8 @@
-import { Injectable, Inject, InternalServerErrorException, NotFoundException } from '@nestjs/common'
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
-import { Cache } from 'cache-manager'
+import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 
 import { SearchService } from '../../common/services/search-service/search.service'
@@ -15,28 +15,28 @@ import { CacheConfig } from '../../config/cache.config'
 @Injectable()
 export class UseragentService extends SearchService<UseragentEntity> {
   constructor(
+    @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
     @InjectRepository(UseragentEntity) private readonly useragentRepository: Repository<UseragentEntity>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService
   ) {
     super(useragentRepository)
   }
 
   public async findAll() {
-    const useragentsCache = await this.cacheManager.get<UseragentEntity[]>(USERAGENT_CACHE_KEY)
+    const useragentsCache = await this.getRedisCache<UseragentEntity[]>(USERAGENT_CACHE_KEY)
     if (useragentsCache) {
       return useragentsCache
     }
 
     const { useragentsCacheTtl } = this.configService.get<CacheConfig>('cache')
     const useragents = await this.useragentRepository.find()
-    await this.cacheManager.set(USERAGENT_CACHE_KEY, useragents, useragentsCacheTtl)
+    await this.setRedisCache(USERAGENT_CACHE_KEY, useragents, useragentsCacheTtl)
 
     return useragents
   }
 
   public async findOne(id: number) {
-    const useragentCache = await this.cacheManager.get<UseragentEntity>(getUseragentByIdCacheKey(id))
+    const useragentCache = await this.getRedisCache<UseragentEntity>(getUseragentByIdCacheKey(id))
     if (useragentCache) {
       return useragentCache
     }
@@ -48,7 +48,7 @@ export class UseragentService extends SearchService<UseragentEntity> {
     }
 
     const { useragentsCacheTtl } = this.configService.get<CacheConfig>('cache')
-    await this.cacheManager.set(getUseragentByIdCacheKey(id), entity, useragentsCacheTtl)
+    await this.setRedisCache(getUseragentByIdCacheKey(id), entity, useragentsCacheTtl)
 
     return entity
   }
@@ -162,14 +162,14 @@ export class UseragentService extends SearchService<UseragentEntity> {
 
       const index = getRandomInt(0, maxIndex)
 
-      const useragentCache = await this.cacheManager.get<UseragentEntity>(getUseragentByIdCacheKey(`index-${index}`))
+      const useragentCache = await this.getRedisCache<UseragentEntity>(getUseragentByIdCacheKey(`index-${index}`))
       if (useragentCache) {
         return useragentCache
       }
 
       const { useragentsCacheTtl } = this.configService.get<CacheConfig>('cache')
       const useragent = await this.useragentRepository.findOne({ where: { index } })
-      await this.cacheManager.set(getUseragentByIdCacheKey(`index-${index}`), useragent, useragentsCacheTtl)
+      await this.setRedisCache(getUseragentByIdCacheKey(`index-${index}`), useragent, useragentsCacheTtl)
 
       return useragent
     } catch (e) {
@@ -189,13 +189,20 @@ export class UseragentService extends SearchService<UseragentEntity> {
   }
 
   public async clearCache() {
-    const keys: string[] = await this.cacheManager.store.keys()
-    await Promise.all(
-      keys.map(async (key) => {
-        if (key.startsWith(USERAGENT_CACHE_KEY)) {
-          await this.cacheManager.del(key)
-        }
-      })
-    )
+    const keys = await this.redis.keys(`${USERAGENT_CACHE_KEY}*`)
+    await this.redis.del(...keys)
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'PX', ttl)
   }
 }

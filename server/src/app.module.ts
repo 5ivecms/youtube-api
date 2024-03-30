@@ -4,13 +4,14 @@ import * as Joi from 'joi'
 import { redisStore } from 'cache-manager-redis-yet'
 import { CacheModule } from '@nestjs/cache-manager'
 import { RedisClientOptions } from 'redis'
+import { RedisModule } from '@liaoliaots/nestjs-redis'
+import { DataSource } from 'typeorm'
+import { ScheduleModule } from '@nestjs/schedule'
 
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { baseUser, cacheConfig, databaseConfig, serverConfig, settingsConfig, tokensConfig } from './config'
 import { DatabaseModule } from './modules/database/database.module'
-import { InvidiousParserModule } from './modules/invidious-parser/invidious-parser.module'
-import { InvidiousModule } from './modules/invidious/invidious.module'
 import { ProxyModule } from './modules/proxy/proxy.module'
 import { UseragentModule } from './modules/useragent/useragent.module'
 import { SafeWordModule } from './modules/safe-word/safe-word.module'
@@ -22,9 +23,7 @@ import { ApiKeyModule } from './modules/api-key/api-key.module'
 import { YoutubeModule } from './modules/youtube/youtube.module'
 import { VideoBlacklistModule } from './modules/video-blacklist/video-blacklist.module'
 import { QuotaUsageModule } from './modules/quota-usage/quota-usage.module'
-import { DataSource } from 'typeorm'
 import { CronModule } from './modules/cron/cron.module'
-import { ScheduleModule } from '@nestjs/schedule'
 import { ChannelBlacklistModule } from './modules/channel-blacklist/channel-blacklist.module'
 
 const ENV = process.env.NODE_ENV ?? 'development'
@@ -85,12 +84,21 @@ const ENV = process.env.NODE_ENV ?? 'development'
       store: redisStore,
       url: 'redis://redis:6379',
     }),
+    RedisModule.forRoot({
+      config: [
+        {
+          url: 'redis://redis2:6377',
+        },
+        {
+          namespace: 'youtube-api',
+          url: 'redis://redis:6379',
+        },
+      ],
+    }),
     ScheduleModule.forRoot(),
     DatabaseModule,
-    InvidiousModule,
     ProxyModule,
     UseragentModule,
-    InvidiousParserModule,
     SafeWordModule,
     SettingsModule,
     UserModule,

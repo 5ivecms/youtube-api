@@ -3,7 +3,7 @@ version: "3.9"
 services:
   nginx:
     ports:
-      - "${NGINX_PORT}:${NGINX_PORT}"
+      - "82:82"
     volumes:
       - ./nginx/nginx.conf.development:/etc/nginx/conf.d/nginx.conf
     networks:
@@ -30,18 +30,14 @@ services:
     stdin_open: true
     tty: true
 
-  redis:
-    ports:
-      - ${REDIS_PORT}:${REDIS_PORT}
-
   redis-commander:
     container_name: youtube-api-redis-commander
     image: ghcr.io/joeferner/redis-commander:latest
     hostname: redis-commander
     environment:
-      - REDIS_HOSTS=local:redis:${REDIS_PORT}
+      - REDIS_HOSTS=local:redis:6379
     ports:
-      - "${REDIS_COMMANDER_PORT}:8081"
+      - "5052:8081"
     networks:
       - youtube-api-network
 

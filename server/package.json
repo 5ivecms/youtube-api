@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@liaoliaots/nestjs-redis": "^9.0.5",
     "@nestjs/cache-manager": "^1.0.0",
     "@nestjs/common": "^9.4.0",
     "@nestjs/config": "^2.3.1",
@@ -42,6 +43,7 @@
     "dot-object": "^2.1.4",
     "hpagent": "^1.2.0",
     "https-proxy-agent": "^7.0.2",
+    "ioredis": "^5.3.2",
     "joi": "^17.7.0",
     "moment": "^2.29.4",
     "passport": "^0.6.0",
@@ -63,6 +65,7 @@
     "@types/cheerio": "^0.22.31",
     "@types/dot-object": "^2.1.2",
     "@types/express": "^4.17.13",
+    "@types/ioredis": "^5.0.0",
     "@types/jest": "27.4.1",
     "@types/joi": "^17.2.3",
     "@types/moment": "^2.13.0",

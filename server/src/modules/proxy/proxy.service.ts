@@ -1,8 +1,8 @@
-import { InternalServerErrorException, Inject, NotFoundException, Injectable } from '@nestjs/common'
+import { InternalServerErrorException, NotFoundException, Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
-import { Cache } from 'cache-manager'
+import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 
 import { CreateBulkProxyDto, CreateProxyDto, DeleteBulkProxyDto, UpdateProxyDto } from './dto'
@@ -15,28 +15,28 @@ import { CacheConfig } from '../../config/cache.config'
 @Injectable()
 export class ProxyService extends SearchService<ProxyEntity> {
   constructor(
+    @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
     @InjectRepository(ProxyEntity) private readonly proxyRepository: Repository<ProxyEntity>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService
   ) {
     super(proxyRepository)
   }
 
   public async findAll() {
-    const proxyCache = await this.cacheManager.get<ProxyEntity[]>(PROXIES_CACHE_KEY)
+    const proxyCache = await this.getRedisCache<ProxyEntity[]>(PROXIES_CACHE_KEY)
     if (proxyCache) {
       return proxyCache
     }
 
     const { proxyCacheTtl } = this.configService.get<CacheConfig>('cache')
     const proxies = await this.proxyRepository.find()
-    await this.cacheManager.set(PROXIES_CACHE_KEY, proxies, proxyCacheTtl)
+    await this.setRedisCache(PROXIES_CACHE_KEY, proxies, proxyCacheTtl)
 
     return proxies
   }
 
   public async findOne(id: number) {
-    const proxyCache = await this.cacheManager.get<ProxyEntity>(getProxiesСompositeCacheKey(id))
+    const proxyCache = await this.getRedisCache<ProxyEntity>(getProxiesСompositeCacheKey(id))
     if (proxyCache) {
       return proxyCache
     }
@@ -48,7 +48,7 @@ export class ProxyService extends SearchService<ProxyEntity> {
     }
 
     const { proxyCacheTtl } = this.configService.get<CacheConfig>('cache')
-    await this.cacheManager.set(getProxiesСompositeCacheKey(id), entity, proxyCacheTtl)
+    await this.setRedisCache(getProxiesСompositeCacheKey(id), entity, proxyCacheTtl)
 
     return entity
   }
@@ -147,14 +147,14 @@ export class ProxyService extends SearchService<ProxyEntity> {
       }
 
       const index = getRandomInt(0, maxIndex)
-      const proxyCache = await this.cacheManager.get<ProxyEntity>(getProxiesСompositeCacheKey(`index-${index}`))
+      const proxyCache = await this.getRedisCache<ProxyEntity>(getProxiesСompositeCacheKey(`index-${index}`))
       if (proxyCache) {
         return proxyCache
       }
 
       const { proxyCacheTtl } = this.configService.get<CacheConfig>('cache')
       const proxy = await this.proxyRepository.findOne({ where: { index } })
-      await this.cacheManager.set(getProxiesСompositeCacheKey(`index-${index}`), proxy, proxyCacheTtl)
+      await this.setRedisCache(getProxiesСompositeCacheKey(`index-${index}`), proxy, proxyCacheTtl)
 
       return proxy
     } catch (e) {
@@ -185,13 +185,20 @@ export class ProxyService extends SearchService<ProxyEntity> {
   }
 
   public async clearCache() {
-    const keys: string[] = await this.cacheManager.store.keys()
-    await Promise.all(
-      keys.map(async (key) => {
-        if (key.startsWith(PROXIES_CACHE_KEY)) {
-          await this.cacheManager.del(key)
-        }
-      })
-    )
+    const keys = await this.redis.keys(`${PROXIES_CACHE_KEY}*`)
+    await this.redis.del(...keys)
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'PX', ttl)
   }
 }

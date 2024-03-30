@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
 import { InjectRepository } from '@nestjs/typeorm'
 import { FindOptionsWhere, Repository } from 'typeorm'
-import { Cache } from 'cache-manager'
+import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 
 import { SettingsEntity } from './settings.entity'
@@ -17,13 +17,13 @@ import {
 } from './settings.constants'
 import { CacheConfig } from '../../config/cache.config'
 import { stringToBoolean } from '../../utils'
-import { ParserSettings, SettingsConfig, YoutubeCacheSettings } from '../../config/settings.config'
+import { ParserSettings, YoutubeCacheSettings } from '../../config/settings.config'
 
 @Injectable()
 export class SettingsService {
   constructor(
+    @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
     @InjectRepository(SettingsEntity) private readonly settingsRepository: Repository<SettingsEntity>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService
   ) {}
 
@@ -63,33 +63,8 @@ export class SettingsService {
     return this.settingsRepository.delete(id)
   }
 
-  public async getInvidiousSettings(): Promise<InvidiousSettings> {
-    const settingsCache = await this.cacheManager.get<InvidiousSettings | undefined>(SETTINGS_CACHE_KEY)
-    if (settingsCache) {
-      return settingsCache
-    }
-
-    const settings = await this.settingsRepository.findBy({ section: 'invidious' })
-
-    const proxySettings = settings.find((setting) => setting.option === 'proxy')
-    const timeoutSettings = settings.find((setting) => setting.option === 'timeout')
-    const apiSettings = settings.find((setting) => setting.option === 'api')
-
-    const settingsObj = {
-      proxy: stringToBoolean(proxySettings.value),
-      timeout: Number(timeoutSettings.value),
-      api: stringToBoolean(apiSettings.value),
-    }
-
-    const { settingsCacheTtl } = this.configService.get<CacheConfig>('cache')
-
-    await this.cacheManager.set(SETTINGS_CACHE_KEY, settingsObj, settingsCacheTtl)
-
-    return settingsObj
-  }
-
   public async getAppSettings(): Promise<AppSettings> {
-    const settingsCache = await this.cacheManager.get<AppSettings | undefined>(APP_SETTINGS_CACHE_KEY)
+    const settingsCache = await this.getRedisCache<AppSettings | undefined>(APP_SETTINGS_CACHE_KEY)
     if (settingsCache) {
       return settingsCache
     }
@@ -104,13 +79,13 @@ export class SettingsService {
 
     const { settingsCacheTtl } = this.configService.get<CacheConfig>('cache')
 
-    await this.cacheManager.set(APP_SETTINGS_CACHE_KEY, settingsObj, settingsCacheTtl)
+    await this.setRedisCache(APP_SETTINGS_CACHE_KEY, settingsObj, settingsCacheTtl)
 
     return settingsObj
   }
 
   public async getApiKeysSettings(): Promise<ApiKeysSettings> {
-    const settingsCache = await this.cacheManager.get<ApiKeysSettings | undefined>(API_KEY_SETTINGS_CACHE_KEY)
+    const settingsCache = await this.getRedisCache<ApiKeysSettings | undefined>(API_KEY_SETTINGS_CACHE_KEY)
     if (settingsCache) {
       return settingsCache
     }
@@ -124,13 +99,13 @@ export class SettingsService {
 
     const { settingsCacheTtl } = this.configService.get<CacheConfig>('cache')
 
-    await this.cacheManager.set(API_KEY_SETTINGS_CACHE_KEY, settingsObj, settingsCacheTtl)
+    await this.setRedisCache(API_KEY_SETTINGS_CACHE_KEY, settingsObj, settingsCacheTtl)
 
     return settingsObj
   }
 
   public async getParserSettings(): Promise<ParserSettings> {
-    const settingsCache = await this.cacheManager.get<ParserSettings | undefined>(PARSER_SETTINGS_KEY)
+    const settingsCache = await this.getRedisCache<ParserSettings | undefined>(PARSER_SETTINGS_KEY)
     if (settingsCache) {
       return settingsCache
     }
@@ -144,13 +119,13 @@ export class SettingsService {
 
     const { settingsCacheTtl } = this.configService.get<CacheConfig>('cache')
 
-    await this.cacheManager.set(PARSER_SETTINGS_KEY, settingsObj, settingsCacheTtl)
+    await this.setRedisCache(PARSER_SETTINGS_KEY, settingsObj, settingsCacheTtl)
 
     return settingsObj
   }
 
   public async getYoutubeCacheSettings(): Promise<YoutubeCacheSettings> {
-    const settingsCache = await this.cacheManager.get<YoutubeCacheSettings | undefined>(YOUTUBE_CACHE_SETTINGS_KEY)
+    const settingsCache = await this.getRedisCache<YoutubeCacheSettings | undefined>(YOUTUBE_CACHE_SETTINGS_KEY)
     if (settingsCache) {
       return settingsCache
     }
@@ -180,27 +155,34 @@ export class SettingsService {
 
     const { settingsCacheTtl } = this.configService.get<CacheConfig>('cache')
 
-    await this.cacheManager.set(YOUTUBE_CACHE_SETTINGS_KEY, settingsObj, 7 * settingsCacheTtl)
+    await this.setRedisCache(YOUTUBE_CACHE_SETTINGS_KEY, settingsObj, 7 * settingsCacheTtl)
 
     return settingsObj
   }
 
   public async clearCache() {
-    const keys: string[] = await this.cacheManager.store.keys()
-    await Promise.all(
-      keys.map(async (key) => {
-        if (key.startsWith(SETTINGS_CACHE_KEY)) {
-          await this.cacheManager.del(key)
-        }
-      })
-    )
+    const keys = await this.redis.keys(`${SETTINGS_CACHE_KEY}*`)
+    await this.redis.del(...keys)
   }
 
   public async resetCache() {
-    await this.cacheManager.reset()
+    await this.redis.flushdb()
   }
 
   public async cacheSize() {
-    return await this.cacheManager.store.mget()
+    return await this.redis.dbsize()
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'PX', ttl)
   }
 }

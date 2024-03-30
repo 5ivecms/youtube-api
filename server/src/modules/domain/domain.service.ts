@@ -1,9 +1,9 @@
 import { Injectable, Inject, NotFoundException, InternalServerErrorException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { DeleteResult, Repository, UpdateResult } from 'typeorm'
-import { CACHE_MANAGER } from '@nestjs/cache-manager'
-import { Cache } from 'cache-manager'
 import { ConfigService } from '@nestjs/config'
+import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
+import { Redis } from 'ioredis'
 
 import { DomainEntity } from './domain.entity'
 import { CreateDomainDto, DeleteBulkDomainDto, UpdateDomainDto } from './dto'
@@ -15,8 +15,8 @@ import { CacheConfig } from '../../config/cache.config'
 @Injectable()
 export class DomainService extends SearchService<DomainEntity> {
   constructor(
+    @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
     @InjectRepository(DomainEntity) private readonly domainRepository: Repository<DomainEntity>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly apiKeyService: ApiKeyService,
     private readonly configService: ConfigService
   ) {
@@ -24,20 +24,21 @@ export class DomainService extends SearchService<DomainEntity> {
   }
 
   public async findAll(): Promise<DomainEntity[]> {
-    const domainsCache = await this.cacheManager.get<DomainEntity[]>(DOMAINS_CACHE_KEY)
+    const domainsCache = await this.getRedisCache<DomainEntity[]>(DOMAINS_CACHE_KEY)
     if (domainsCache) {
       return domainsCache
     }
 
     const { domainsCacheTtl } = this.configService.get<CacheConfig>('cache')
     const domains = await this.domainRepository.find()
-    await this.cacheManager.set(DOMAINS_CACHE_KEY, domains, domainsCacheTtl)
+
+    await this.setRedisCache(DOMAINS_CACHE_KEY, domains, domainsCacheTtl)
 
     return domains
   }
 
   public async findOne(id: number): Promise<DomainEntity> {
-    const domainCache = await this.cacheManager.get<DomainEntity>(getDomainByIdCacheKey(id))
+    const domainCache = await this.getRedisCache<DomainEntity>(getDomainByIdCacheKey(id))
     if (domainCache) {
       return domainCache
     }
@@ -49,7 +50,7 @@ export class DomainService extends SearchService<DomainEntity> {
     }
 
     const { domainsCacheTtl } = this.configService.get<CacheConfig>('cache')
-    await this.cacheManager.set(getDomainByIdCacheKey(id), domain, domainsCacheTtl)
+    await this.setRedisCache(getDomainByIdCacheKey(id), domain, domainsCacheTtl)
 
     return domain
   }
@@ -94,13 +95,20 @@ export class DomainService extends SearchService<DomainEntity> {
   }
 
   public async clearCache() {
-    const keys: string[] = await this.cacheManager.store.keys()
-    await Promise.all(
-      keys.map(async (key) => {
-        if (key.startsWith(DOMAINS_CACHE_KEY)) {
-          await this.cacheManager.del(key)
-        }
-      })
-    )
+    const keys: string[] = await this.redis.keys(`${DOMAINS_CACHE_KEY}*`)
+    await this.redis.del(...keys)
+  }
+
+  private async getRedisCache<T>(key: string): Promise<T | null> {
+    const data = await this.redis.get(key)
+    if (data) {
+      return JSON.parse(data) as T
+    }
+
+    return null
+  }
+
+  private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {
+    await this.redis.set(key, JSON.stringify(data), 'PX', ttl)
   }
 }
