@@ -102,7 +102,9 @@ export class SafeWordService extends SearchService<SafeWordEntity> {
 
   public async clearCache() {
     const keys = await this.redis.keys(`${SAFE_WORD_CACHE_KEY}*`)
-    await this.redis.del(...keys)
+    if (keys.length) {
+      await this.redis.del(...keys)
+    }
   }
 
   private async getRedisCache<T>(key: string): Promise<T | null> {

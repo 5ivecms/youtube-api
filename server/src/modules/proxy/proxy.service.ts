@@ -186,7 +186,9 @@ export class ProxyService extends SearchService<ProxyEntity> {
 
   public async clearCache() {
     const keys = await this.redis.keys(`${PROXIES_CACHE_KEY}*`)
-    await this.redis.del(...keys)
+    if (keys.length) {
+      await this.redis.del(...keys)
+    }
   }
 
   private async getRedisCache<T>(key: string): Promise<T | null> {

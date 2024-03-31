@@ -144,7 +144,9 @@ export class ChannelBlacklistService extends SearchService<ChannelBlacklistEntit
     }
 
     const videoCacheKeys = cachedVideo.filter((video) => video !== null).map((video) => CacheKeys.videoById(video.id))
-    await this.redisYt.del(...videoCacheKeys)
+    if (videoCacheKeys.length) {
+      await this.redisYt.del(...videoCacheKeys)
+    }
   }
 
   public async clearChannelsCache(channelIds: string[]) {

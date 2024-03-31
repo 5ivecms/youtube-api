@@ -162,7 +162,9 @@ export class SettingsService {
 
   public async clearCache() {
     const keys = await this.redis.keys(`${SETTINGS_CACHE_KEY}*`)
-    await this.redis.del(...keys)
+    if (keys.length) {
+      await this.redis.del(...keys)
+    }
   }
 
   public async resetCache() {

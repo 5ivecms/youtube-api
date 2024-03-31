@@ -95,8 +95,10 @@ export class DomainService extends SearchService<DomainEntity> {
   }
 
   public async clearCache() {
-    const keys: string[] = await this.redis.keys(`${DOMAINS_CACHE_KEY}*`)
-    await this.redis.del(...keys)
+    const keys = await this.redis.keys(`${DOMAINS_CACHE_KEY}*`)
+    if (keys.length) {
+      await this.redis.del(...keys)
+    }
   }
 
   private async getRedisCache<T>(key: string): Promise<T | null> {
