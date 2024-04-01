@@ -2,6 +2,7 @@ export type Video = {
   id: string
   title: string
   description: string
+  snippet: string
   duration: string
   durationSec: number
   durationParts: {

@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import * as Joi from 'joi'
-import { CacheModule } from '@nestjs/cache-manager'
-import { RedisClientOptions } from 'redis'
 import { RedisModule } from '@liaoliaots/nestjs-redis'
 import { DataSource } from 'typeorm'
 import { ScheduleModule } from '@nestjs/schedule'
@@ -79,15 +77,7 @@ const ENV = process.env.NODE_ENV ?? 'development'
       }),
     }),
     RedisModule.forRoot({
-      config: [
-        {
-          url: 'redis://redis2:6377',
-        },
-        {
-          namespace: 'youtube-api',
-          url: 'redis://redis:6379',
-        },
-      ],
+      config: [{ url: 'redis://redis2:6377' }, { namespace: 'youtube-api', url: 'redis://redis:6379' }],
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,

@@ -120,6 +120,11 @@ export class YoutubeApiService {
 
     const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
 
+    const snippets: Record<string, string> = result.items.reduce(
+      (acc, item) => ({ ...acc, [item.id.videoId]: item.snippet.description }),
+      {}
+    )
+
     const videoIds: string[] = result.items
       .filter((item) => !blackList.includes(item.id.videoId))
       .map((item) => item.id.videoId)
@@ -129,10 +134,11 @@ export class YoutubeApiService {
     }
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+    const data: Video[] = videos.map((video) => ({ ...video, snippet: snippets[video.id] }))
 
-    await this.setRedisCache(CacheKeys.search(dto.q), videos, settings.search)
+    await this.setRedisCache(CacheKeys.search(dto.q), data, settings.search)
 
-    return videos
+    return data
   }
 
   public async categories(): Promise<Category[]> {
@@ -263,6 +269,7 @@ export class YoutubeApiService {
       id: item.id,
       title: item.snippet.title,
       description: parserSettings.saveVideoDescription ? item.snippet.description : '',
+      snippet: '',
       channelId: item.snippet.channelId,
       channelTitle: item.snippet.channelTitle,
       publishedAt: item.snippet.publishedAt,
@@ -359,6 +366,7 @@ export class YoutubeApiService {
           id: item.id,
           title: item.snippet.title,
           description: parserSettings.saveVideoDescription ? item.snippet.description : '',
+          snippet: '',
           channelId: item.snippet.channelId,
           channelTitle: item.snippet.channelTitle,
           publishedAt: item.snippet.publishedAt,
