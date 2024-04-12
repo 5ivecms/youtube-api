@@ -35,11 +35,23 @@ const columns = [
     header: () => 'VideoId',
     size: 2000,
   }),
+  columnHelper.accessor('reason', {
+    cell: (info) => info.getValue(),
+    header: () => 'Причина',
+    size: 200,
+  }),
+  columnHelper.accessor('createdAt', {
+    cell: (info) => info.getValue(),
+    header: () => 'Дата',
+    size: 200,
+  }),
 ]
 
 const filters: DataGridFilterDef<VideoBlacklistModel>[] = [
   { name: 'id', placeholder: 'id', type: 'text' },
   { name: 'videoId', placeholder: 'VideoId', type: 'text' },
+  { name: 'reason', placeholder: 'Причина', type: 'text' },
+  { name: 'createdAt', placeholder: 'Дата', type: 'text' },
 ]
 
 const VideoBlacklistIndexPage = () => {

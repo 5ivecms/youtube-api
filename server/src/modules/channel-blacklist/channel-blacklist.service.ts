@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { DEFAULT_REDIS_NAMESPACE, InjectRedis } from '@liaoliaots/nestjs-redis'
@@ -22,7 +22,7 @@ import { Video } from '../youtube/youtube-api.types'
 export class ChannelBlacklistService extends SearchService<ChannelBlacklistEntity> {
   constructor(
     @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
-    @InjectRedis('youtube-api') private readonly redisYt: Redis,
+    // @InjectRedis('youtube-api') private readonly redisYt: Redis,
     @InjectRepository(ChannelBlacklistEntity)
     private readonly channelBlacklistRepository: Repository<ChannelBlacklistEntity>,
     private readonly configService: ConfigService
@@ -70,16 +70,16 @@ export class ChannelBlacklistService extends SearchService<ChannelBlacklistEntit
     try {
       const { channelId } = dto
       const existChannel = await this.channelBlacklistRepository.findOneBy({ channelId })
-
       if (existChannel) {
         return existChannel
       }
 
+      const result = await this.channelBlacklistRepository.save(dto)
       await this.clearCache()
-      await this.clearChannelCache(channelId)
-      await this.clearYtCache()
+      // await this.clearChannelCache(channelId)
+      // await this.clearYtCache()
 
-      return await this.channelBlacklistRepository.save(dto)
+      return result
     } catch (e) {
       throw new InternalServerErrorException(e)
     }
@@ -95,8 +95,8 @@ export class ChannelBlacklistService extends SearchService<ChannelBlacklistEntit
       )
 
       await this.clearCache()
-      await this.clearChannelsCache(channelIds)
-      await this.clearYtCache()
+      // await this.clearChannelsCache(channelIds)
+      // await this.clearYtCache()
 
       return createdChannels
     } catch (e) {
@@ -114,65 +114,67 @@ export class ChannelBlacklistService extends SearchService<ChannelBlacklistEntit
   }
 
   public async delete(id: number) {
+    const result = await this.channelBlacklistRepository.delete(id)
     await this.clearCache()
-    return this.channelBlacklistRepository.delete(id)
+    return result
   }
 
   public async deleteBulk(dto: DeleteBulkChannelBlacklistDto) {
+    const result = await this.channelBlacklistRepository.delete(dto.channelIds)
     await this.clearCache()
-    return this.channelBlacklistRepository.delete(dto.channelIds)
+    return result
   }
 
   public async clear() {
+    await this.channelBlacklistRepository.clear()
     await this.clearCache()
-    return this.channelBlacklistRepository.clear()
   }
 
   public async clearCache() {
     await this.redis.del(CHANNEL_BLACKLIST_CACHE_KEY)
   }
 
-  public async clearChannelCache(channelId: string) {
-    const cachedVideo = JSON.parse(await this.redisYt.get(CacheKeys.videoByChannelId(channelId))) as unknown as
-      | Video[]
-      | null
+  // public async clearCache() {
+  //   await this.redis.del(CHANNEL_BLACKLIST_CACHE_KEY)
+  // }
 
-    await this.redisYt.del(CacheKeys.videoByChannelId(channelId))
+  // public async clearChannelCache(channelId: string) {
+  //   const cachedVideo = JSON.parse(await this.redisYt.get(CacheKeys.videoByChannelId(channelId))) as unknown as
+  //     | Video[]
+  //     | null
 
-    if (!cachedVideo) {
-      return
-    }
+  //   await this.redisYt.del(CacheKeys.videoByChannelId(channelId))
 
-    const videoCacheKeys = cachedVideo.filter((video) => video !== null).map((video) => CacheKeys.videoById(video.id))
-    if (videoCacheKeys.length) {
-      await this.redisYt.del(...videoCacheKeys)
-    }
-  }
+  //   if (!cachedVideo) {
+  //     return
+  //   }
 
-  public async clearChannelsCache(channelIds: string[]) {
-    await Promise.all(
-      channelIds.map(async (channelId) => {
-        await this.clearChannelCache(channelId)
-      })
-    )
-  }
+  //   const videoCacheKeys = cachedVideo.filter((video) => video !== null).map((video) => CacheKeys.videoById(video.id))
+  //   if (videoCacheKeys.length) {
+  //     await this.redisYt.del(...videoCacheKeys)
+  //   }
+  // }
 
-  public async clearYtCache() {
-    const keys = [
-      CacheKeys.trends(),
-      CacheKeys.categoriesWithVideos(),
-      ...(await this.redisYt.keys(`${CacheKeys.videoByCategoryId()}*`)),
-    ]
-    await this.redisYt.del(...keys)
-  }
+  // public async clearChannelsCache(channelIds: string[]) {
+  //   await Promise.all(
+  //     channelIds.map(async (channelId) => {
+  //       await this.clearChannelCache(channelId)
+  //     })
+  //   )
+  // }
+
+  // public async clearYtCache() {
+  //   const keys = [
+  //     CacheKeys.trends(),
+  //     CacheKeys.categoriesWithVideos(),
+  //     ...(await this.redisYt.keys(`${CacheKeys.videoByCategoryId()}*`)),
+  //   ]
+  //   await this.redisYt.del(...keys)
+  // }
 
   private async getRedisCache<T>(key: string): Promise<T | null> {
     const data = await this.redis.get(key)
-    if (data) {
-      return JSON.parse(data) as T
-    }
-
-    return null
+    return data ? (JSON.parse(data) as T) : null
   }
 
   private async setRedisCache(key: string, data: any, ttl: number): Promise<void> {

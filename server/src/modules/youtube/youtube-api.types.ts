@@ -1,3 +1,5 @@
+import { LanguageCode } from 'cld3-asm'
+
 export type Video = {
   id: string
   title: string
@@ -17,6 +19,8 @@ export type Video = {
   channelTitle: string
   timeAgo: string
   publishedAt: Date
+  titleLang: LanguageCode
+  channelTitleLang: LanguageCode
 }
 
 export type Category = {
@@ -310,3 +314,5 @@ export type CommentThreadListResponse = {
   pageInfo: Pageinfo
   items: YTComment[]
 }
+
+export type Country = keyof typeof LanguageCode

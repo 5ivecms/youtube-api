@@ -15,14 +15,12 @@ import {
 import { VIDEO_BLACKLIST_CACHE_KEY } from './constants'
 import { SearchService } from '../../common/services/search-service/search.service'
 import { CacheConfig } from '../../config/cache.config'
-import { CacheKeys } from '../youtube/utils'
-import { Video } from '../youtube/youtube-api.types'
 
 @Injectable()
 export class VideoBlacklistService extends SearchService<VideoBlacklistEntity> {
   constructor(
     @InjectRedis(DEFAULT_REDIS_NAMESPACE) private readonly redis: Redis,
-    @InjectRedis('youtube-api') private readonly redisYt: Redis,
+    // @InjectRedis('youtube-api') private readonly redisYt: Redis,
     @InjectRepository(VideoBlacklistEntity) private readonly videoBlacklistRepository: Repository<VideoBlacklistEntity>,
     private readonly configService: ConfigService
   ) {
@@ -40,6 +38,11 @@ export class VideoBlacklistService extends SearchService<VideoBlacklistEntity> {
     await this.setRedisCache(VIDEO_BLACKLIST_CACHE_KEY, videos, videoBlacklistCacheTtl)
 
     return videos
+  }
+
+  public async blacklist(): Promise<string[]> {
+    const entities = await this.findAll()
+    return entities.map(({ videoId }) => videoId)
   }
 
   public async findOne(id: number) {
@@ -70,11 +73,13 @@ export class VideoBlacklistService extends SearchService<VideoBlacklistEntity> {
         return existVideo
       }
 
-      await this.clearCache()
-      await this.clearYoutubeCache()
-      await this.clearYoutubeCache(videoId)
+      const result = await this.videoBlacklistRepository.save(dto)
 
-      return await this.videoBlacklistRepository.save(dto)
+      await this.clearCache()
+      // await this.clearYoutubeCache()
+      // await this.clearYoutubeCache(videoId)
+
+      return result
     } catch (e) {
       throw new InternalServerErrorException(e)
     }
@@ -83,7 +88,7 @@ export class VideoBlacklistService extends SearchService<VideoBlacklistEntity> {
   public async createBulk(dto: CreateBulkVideoBlacklistDto): Promise<VideoBlacklistEntity[]> {
     const videoIds = await Promise.all(
       dto.videoIds.map(async (videoId) => {
-        await this.clearYoutubeCache(videoId)
+        // await this.clearYoutubeCache(videoId)
 
         const existVideo = await this.videoBlacklistRepository.findOneBy({ videoId })
         if (existVideo) {
@@ -95,62 +100,70 @@ export class VideoBlacklistService extends SearchService<VideoBlacklistEntity> {
     )
 
     await this.clearCache()
-    await this.clearYoutubeCache()
+    // await this.clearYoutubeCache()
 
     return videoIds
   }
 
   public async update(id: number, dto: UpdateVideoBlacklistDto) {
     await this.findOne(id)
+    const result = await this.videoBlacklistRepository.update(id, { videoId: dto.videoId.trim() })
     await this.clearCache()
-    return this.videoBlacklistRepository.update(id, { videoId: dto.videoId.trim() })
+    return result
   }
 
   public async delete(id: number) {
+    const result = await this.videoBlacklistRepository.delete(id)
     await this.clearCache()
-    return this.videoBlacklistRepository.delete(id)
+    return result
   }
 
   public async deleteBulk(dto: DeleteBulkVideoBlacklistDto) {
+    const result = await this.videoBlacklistRepository.delete(dto.ids)
     await this.clearCache()
-    return this.videoBlacklistRepository.delete(dto.ids)
+    return result
   }
 
   public async clear() {
+    const result = await this.videoBlacklistRepository.clear()
     await this.clearCache()
-    return this.videoBlacklistRepository.clear()
+    return result
   }
 
   public async clearCache() {
-    const keys = await this.redisYt.keys(`${VIDEO_BLACKLIST_CACHE_KEY}*`)
-    if (keys.length) {
-      await this.redis.del(...keys)
-    }
+    await this.redis.del(VIDEO_BLACKLIST_CACHE_KEY)
   }
 
-  public async clearYoutubeCache(compositeCacheKey = '') {
-    if (compositeCacheKey.length > 0) {
-      const cacheVideo = JSON.parse(
-        await this.redisYt.get(CacheKeys.videoById(compositeCacheKey))
-      ) as unknown as Video | null
+  // public async clearCache() {
+  //   const keys = await this.redisYt.keys(`${VIDEO_BLACKLIST_CACHE_KEY}*`)
+  //   if (keys.length) {
+  //     await this.redis.del(...keys)
+  //   }
+  // }
 
-      if (cacheVideo) {
-        await this.redisYt.del(CacheKeys.videoByChannelId(cacheVideo.channelId))
-      }
+  // public async clearYoutubeCache(compositeCacheKey = '') {
+  //   if (compositeCacheKey.length > 0) {
+  //     const cacheVideo = JSON.parse(
+  //       await this.redisYt.get(CacheKeys.videoById(compositeCacheKey))
+  //     ) as unknown as Video | null
 
-      await this.redisYt.del(CacheKeys.videoById(compositeCacheKey), CacheKeys.comments(compositeCacheKey))
+  //     if (cacheVideo) {
+  //       await this.redisYt.del(CacheKeys.videoByChannelId(cacheVideo.channelId))
+  //     }
 
-      return
-    }
+  //     await this.redisYt.del(CacheKeys.videoById(compositeCacheKey), CacheKeys.comments(compositeCacheKey))
 
-    const keys = [
-      CacheKeys.trends(),
-      CacheKeys.categoriesWithVideos(),
-      ...(await this.redisYt.keys(`${CacheKeys.videoByCategoryId()}*`)),
-    ]
+  //     return
+  //   }
 
-    await this.redisYt.del(...keys)
-  }
+  //   const keys = [
+  //     CacheKeys.trends(),
+  //     CacheKeys.categoriesWithVideos(),
+  //     ...(await this.redisYt.keys(`${CacheKeys.videoByCategoryId()}*`)),
+  //   ]
+
+  //   await this.redisYt.del(...keys)
+  // }
 
   private async getRedisCache<T>(key: string): Promise<T | null> {
     const data = await this.redis.get(key)

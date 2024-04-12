@@ -33,7 +33,7 @@ export class ChannelBlacklistController {
     return this.channelBlacklistService.findOne(Number(id))
   }
 
-  @UseGuards(AuthGuard(['jwt']))
+  @UseGuards(AuthGuard(['api-key', 'jwt']))
   @Post()
   public create(@Body() dto: CreateChannelBlacklistDto) {
     return this.channelBlacklistService.create(dto)

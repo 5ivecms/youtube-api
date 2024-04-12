@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import * as Joi from 'joi'
 import { RedisModule } from '@liaoliaots/nestjs-redis'
@@ -22,6 +22,9 @@ import { VideoBlacklistModule } from './modules/video-blacklist/video-blacklist.
 import { QuotaUsageModule } from './modules/quota-usage/quota-usage.module'
 import { CronModule } from './modules/cron/cron.module'
 import { ChannelBlacklistModule } from './modules/channel-blacklist/channel-blacklist.module'
+import { Cld3Module } from './modules/cld3/cld3.module'
+import { AppOnlineMiddleware } from './common/middleware/api-online.middleware'
+import { SettingsService } from './modules/settings/settings.service'
 
 const ENV = process.env.NODE_ENV ?? 'development'
 
@@ -77,7 +80,39 @@ const ENV = process.env.NODE_ENV ?? 'development'
       }),
     }),
     RedisModule.forRoot({
-      config: [{ url: 'redis://redis2:6377' }, { namespace: 'youtube-api', url: 'redis://redis:6379' }],
+      config: [
+        { url: 'redis://redis2:6377' },
+        {
+          namespace: 'youtube-api',
+          url: 'redis://redis:6379',
+          db: 0,
+        },
+        {
+          namespace: 'youtube-api-channels',
+          url: 'redis://redis:6379',
+          db: 1,
+        },
+        {
+          namespace: 'youtube-api-videos',
+          url: 'redis://redis:6379',
+          db: 2,
+        },
+        {
+          namespace: 'youtube-api-search',
+          url: 'redis://redis:6379',
+          db: 3,
+        },
+        {
+          namespace: 'youtube-api-comments',
+          url: 'redis://redis:6379',
+          db: 4,
+        },
+        {
+          namespace: 'youtube-api-playlists',
+          url: 'redis://redis:6379',
+          db: 5,
+        },
+      ],
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,
@@ -94,10 +129,15 @@ const ENV = process.env.NODE_ENV ?? 'development'
     ChannelBlacklistModule,
     QuotaUsageModule,
     CronModule,
+    Cld3Module,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {
-  constructor(private dataSource: DataSource) {}
+export class AppModule implements NestModule {
+  constructor(private dataSource: DataSource, private readonly settingsService: SettingsService) {}
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply((req, res, next) => new AppOnlineMiddleware(this.settingsService).use(req, res, next)).forRoutes('*')
+  }
 }

@@ -12,6 +12,9 @@ import { QuotaUsageModule } from '../quota-usage/quota-usage.module'
 import { ProxyModule } from '../proxy/proxy.module'
 import { SettingsModule } from '../settings/settings.module'
 import { ChannelBlacklistModule } from '../channel-blacklist/channel-blacklist.module'
+import { Cld3Module } from '../cld3/cld3.module'
+import { YoutubeCacheProvider } from './youtube-cache.provider'
+import { YoutubeFilterProvider } from './youtube-filter.provider'
 
 @Module({
   imports: [
@@ -22,9 +25,10 @@ import { ChannelBlacklistModule } from '../channel-blacklist/channel-blacklist.m
     QuotaUsageModule,
     ProxyModule,
     SettingsModule,
+    Cld3Module,
   ],
   controllers: [YoutubeApikeyController, YoutubeApiController],
-  providers: [YoutubeApiService, YoutubeApikeyService],
-  exports: [YoutubeApikeyService],
+  providers: [YoutubeApiService, YoutubeApikeyService, YoutubeCacheProvider, YoutubeFilterProvider],
+  exports: [YoutubeApikeyService, YoutubeCacheProvider, YoutubeFilterProvider],
 })
 export class YoutubeModule {}

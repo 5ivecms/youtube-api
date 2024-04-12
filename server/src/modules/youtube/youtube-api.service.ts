@@ -1,10 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import axios, { AxiosResponse } from 'axios'
 import { format, register } from 'timeago.js'
 import ruLocale from 'timeago.js/lib/lang/ru'
 import { HttpsProxyAgent } from 'hpagent'
-import { InjectRedis } from '@liaoliaots/nestjs-redis'
-import { Redis } from 'ioredis'
+import { LanguageCode } from 'cld3-asm'
 
 import { YoutubeApikeyService } from './youtube-apikey.service'
 import { AVAILABLE_CATEGORY_IDS, QuotaCosts, YTApiEndpoints } from './constants'
@@ -31,47 +30,38 @@ import {
   YoutubeApiVideoById,
   YoutubeApiVideoByPlaylistId,
 } from './dto'
-import { CacheKeys } from './utils'
 import { convertDurationToSeconds, convertTimeToFormat, getDurationParts } from '../../utils'
-import { VideoBlacklistService } from '../video-blacklist/video-blacklist.service'
-import { SafeWordService } from '../safe-word/safe-word.service'
 import { QuotaUsageService } from '../quota-usage/quota-usage.service'
 import { YoutubeApikey } from './youtube-apikey.entity'
 import { SettingsService } from '../settings/settings.service'
-import { ChannelBlacklistService } from '../channel-blacklist/channel-blacklist.service'
+import { YoutubeCacheProvider } from './youtube-cache.provider'
+import { PlaylistNotFound, VideoNotFound } from './exceptions'
+import { YoutubeFilterProvider } from './youtube-filter.provider'
 
 register('ru', ruLocale)
 
 // Видео без комментариев iWcBrz0YWyE
+// http://localhost:9090/channel/UC-wWyFdk_txbZV8FKEk0V8A/ украинский канал
+// http://localhost:9090/channel/UCBExEyByJmPydFVVFcGeOqQ/ Много хештегов. Их надо удалить чтобы повысить качество определения языка
 
 @Injectable()
 export class YoutubeApiService {
   constructor(
-    @InjectRedis('youtube-api') private readonly redis: Redis,
+    private readonly cacheProvider: YoutubeCacheProvider,
+    private readonly filter: YoutubeFilterProvider,
     private readonly youtubeApikeyService: YoutubeApikeyService,
-    private readonly videoBlacklistService: VideoBlacklistService,
-    private readonly channelBlacklistService: ChannelBlacklistService,
-    private readonly safeWordsService: SafeWordService,
     private readonly quotaUsageService: QuotaUsageService,
     private readonly settingsService: SettingsService
   ) {}
 
   public async search(dto: YoutubeApiSearchDto): Promise<Video[]> {
-    await this.checkAppOnline()
-
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const safeWords = await this.safeWordsService.getAllSafeWords()
-    const isBad =
-      safeWords.filter((phrase) => dto.q.toLocaleLowerCase().indexOf(phrase.toLocaleLowerCase()) !== -1).length > 0
-
-    if (isBad) {
+    if (!this.filter.isAcceptableCountryByText(dto.q) || !(await this.filter.isAcceptablePhrase(dto.q))) {
       return []
     }
 
-    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.search(dto.q))
+    const cachedVideo = await this.cacheProvider.getSearchCache(dto.q)
     if (cachedVideo) {
-      return cachedVideo
+      return await this.filter.getWhiteVideos(cachedVideo)
     }
 
     let result: SearchResponse | null = null
@@ -86,6 +76,7 @@ export class YoutubeApiService {
           regionCode: 'RU',
           type: 'video',
           q: dto.q,
+          lr: 'ru_RU',
           relevanceLanguage: 'ru',
           safeSearch: 'strict',
           videoEmbeddable: true,
@@ -118,36 +109,24 @@ export class YoutubeApiService {
       }
     }
 
-    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
-
     const snippets: Record<string, string> = result.items.reduce(
       (acc, item) => ({ ...acc, [item.id.videoId]: item.snippet.description }),
       {}
     )
 
-    const videoIds: string[] = result.items
-      .filter((item) => !blackList.includes(item.id.videoId))
-      .map((item) => item.id.videoId)
-
-    if (!videoIds.length) {
-      return []
-    }
-
+    const videoIds = result.items.map((item) => item.id.videoId)
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
     const data: Video[] = videos.map((video) => ({ ...video, snippet: snippets[video.id] }))
 
-    await this.setRedisCache(CacheKeys.search(dto.q), data, settings.search)
+    await this.cacheProvider.setSearchCache(dto.q, data)
 
     return data
   }
 
   public async categories(): Promise<Category[]> {
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-    await this.checkAppOnline()
-
-    const cachedVideo = await this.getRedisCache<Category[]>(CacheKeys.categories())
-    if (cachedVideo) {
-      return cachedVideo
+    const cachedCategories = await this.cacheProvider.getCategoriesCache()
+    if (cachedCategories) {
+      return cachedCategories
     }
 
     let result: VideoCategoriesResponse | null = null
@@ -197,25 +176,19 @@ export class YoutubeApiService {
       return []
     }
 
-    await this.setRedisCache(CacheKeys.categories(), categories, settings.categories)
+    await this.cacheProvider.setCategoriesCache(categories)
 
     return categories
   }
 
   public async videoById(dto: YoutubeApiVideoById): Promise<Video> {
-    const appSettings = await this.settingsService.getAppSettings()
-    if (!appSettings.enabled) {
-      throw new BadRequestException('App offline')
-    }
-
     const { videoId } = dto
-    const inBlackList = await this.videoBlacklistService.inBlacklist(videoId)
-    if (inBlackList) {
-      throw new NotFoundException()
-    }
 
-    const cachedVideo = await this.getRedisCache<Video>(CacheKeys.videoById(videoId))
+    await this.filter.tryVideoId(videoId)
+
+    const cachedVideo = await this.cacheProvider.getVideoCache(videoId)
     if (cachedVideo) {
+      await this.filter.tryVideo(cachedVideo)
       return cachedVideo
     }
 
@@ -250,7 +223,7 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException()
+          throw new VideoNotFound()
         }
 
         throw new BadRequestException()
@@ -258,7 +231,7 @@ export class YoutubeApiService {
     }
 
     if (result.items.length === 0) {
-      throw new NotFoundException('Video not found')
+      throw new VideoNotFound()
     }
 
     const parserSettings = await this.settingsService.getParserSettings()
@@ -280,37 +253,29 @@ export class YoutubeApiService {
       timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
       views: Number(item.statistics.viewCount),
       viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+      titleLang: this.filter.detectCountryByText(item.snippet.title),
+      channelTitleLang: LanguageCode.UNKNOWN,
     }
 
-    const isChannelInBlacklist = await this.channelBlacklistService.inBlacklist(video.channelId)
-    if (isChannelInBlacklist) {
-      throw new NotFoundException('Video not found')
-    }
-
-    await this.setCacheVideoById(video)
+    await this.cacheProvider.setVideoCache(video)
+    await this.filter.tryVideo(video)
 
     return video
   }
 
   public async videoByIds(dto: YoutubeApiVideoById): Promise<Video[]> {
-    await this.checkAppOnline()
-
     const ids = dto.videoId.split(',').map((id) => id.trim())
+    if (!ids.length) {
+      return []
+    }
 
-    // Добавить проверку видео на наличие в блеклисте
-    const cachedVideos = (
-      await Promise.all(
-        ids.map(async (id) => {
-          return await this.getRedisCache<Video>(CacheKeys.videoById(id))
-        })
-      )
-    ).filter((video) => video !== null)
+    const filteredIds = await this.filter.getWhiteVideoIds(ids)
+    const cachedVideos = await this.cacheProvider.getVideosCache(filteredIds)
 
-    const cachedVideoIds = cachedVideos.map((video) => video.id)
-    const nonCachedVideoIds = ids.filter((id) => !cachedVideoIds.includes(id))
-
+    const cachedVideoIds = cachedVideos.map(({ id }) => id)
+    const nonCachedVideoIds = filteredIds.filter((id) => !cachedVideoIds.includes(id))
     if (!nonCachedVideoIds.length) {
-      return cachedVideos
+      return await this.filter.getWhiteVideos(cachedVideos)
     }
 
     let result: VideoFullResponse | null = null
@@ -344,7 +309,7 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException()
+          throw new VideoNotFound()
         }
 
         throw new BadRequestException()
@@ -352,51 +317,39 @@ export class YoutubeApiService {
     }
 
     if (result.items.length === 0) {
-      throw new NotFoundException('Video not found')
+      throw new VideoNotFound()
     }
 
     const parserSettings = await this.settingsService.getParserSettings()
 
-    const channelsBlacklist = await this.channelBlacklistService.blacklist()
+    const videos = result.items.map((item) => ({
+      id: item.id,
+      title: item.snippet.title,
+      description: parserSettings.saveVideoDescription ? item.snippet.description : '',
+      snippet: '',
+      channelId: item.snippet.channelId,
+      channelTitle: item.snippet.channelTitle,
+      publishedAt: item.snippet.publishedAt,
+      duration: item.contentDetails.duration,
+      durationSec: convertDurationToSeconds(item.contentDetails.duration),
+      durationParts: getDurationParts(item.contentDetails.duration),
+      readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
+      timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
+      views: Number(item.statistics.viewCount),
+      viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
+      titleLang: this.filter.detectCountryByText(item.snippet.title),
+      channelTitleLang: LanguageCode.UNKNOWN,
+    }))
 
-    const videos: Video[] = result.items
-      .filter((item) => !channelsBlacklist.includes(item.snippet.channelId))
-      .map((item) => {
-        return {
-          id: item.id,
-          title: item.snippet.title,
-          description: parserSettings.saveVideoDescription ? item.snippet.description : '',
-          snippet: '',
-          channelId: item.snippet.channelId,
-          channelTitle: item.snippet.channelTitle,
-          publishedAt: item.snippet.publishedAt,
-          duration: item.contentDetails.duration,
-          durationSec: convertDurationToSeconds(item.contentDetails.duration),
-          durationParts: getDurationParts(item.contentDetails.duration),
-          readabilityDuration: convertTimeToFormat(item.contentDetails.duration),
-          timeAgo: format(new Date(item.snippet.publishedAt), 'ru'),
-          views: Number(item.statistics.viewCount),
-          viewsStr: Number(item.statistics.viewCount).toLocaleString('ru'),
-        }
-      })
+    await this.cacheProvider.setVideosCache(videos)
 
-    await Promise.all(
-      videos.map(async (video) => {
-        await this.setCacheVideoById(video)
-      })
-    )
-
-    return [...cachedVideos, ...videos]
+    return await this.filter.getWhiteVideos([...cachedVideos, ...videos])
   }
 
   public async videoByCategoryId(dto: YoutubeApiVideoByCategoryIdDto): Promise<Video[]> {
-    await this.checkAppOnline()
-
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.videoByCategoryId(dto.categoryId))
+    const cachedVideo = await this.cacheProvider.getVideosByCategory(dto.categoryId)
     if (cachedVideo) {
-      return cachedVideo
+      return await this.filter.getWhiteVideos(cachedVideo)
     }
 
     let result: VideoListResponse | null = null
@@ -433,52 +386,45 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException()
+          throw new VideoNotFound()
         }
 
         throw new BadRequestException()
       }
     }
 
-    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
-    const videoIds: string[] = result.items.filter((item) => !blackList.includes(item.id)).map((item) => item.id)
+    if (!result) {
+      return []
+    }
 
+    const videoIds = result.items.map((item) => item.id)
     if (!videoIds.length) {
       return []
     }
 
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
-
-    await this.setRedisCache(CacheKeys.videoByCategoryId(dto.categoryId), videos, settings.videoByCategoryId)
+    await this.cacheProvider.setVideosByCategory(dto.categoryId, videos)
 
     return videos
   }
 
   public async videoFull(dto: YoutubeApiVideoById): Promise<FullVideoData> {
-    await this.checkAppOnline()
-
     const { videoId } = dto
-
-    const video: Video = await this.videoById({ videoId })
-    const comments: Comment[] = await this.comments({ videoId: video.id })
-    const related: Video[] = await this.videoByChannelId({ channelId: video.channelId })
+    const video = await this.videoById({ videoId })
+    const comments = await this.comments({ videoId: video.id })
+    const related = await this.videoByChannelId({ channelId: video.channelId })
 
     return { video, comments, related }
   }
 
   public async videoByChannelId(dto: YoutubeApiVideoByChannelIdDto): Promise<Video[]> {
-    await this.checkAppOnline()
+    const { channelId } = dto
 
-    const isChannelInBlacklist = await this.channelBlacklistService.inBlacklist(dto.channelId)
-    if (isChannelInBlacklist) {
-      throw new NotFoundException('Канал не найден')
-    }
+    await this.filter.tryChannel(channelId)
 
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.videoByChannelId(dto.channelId))
+    const cachedVideo = await this.cacheProvider.getChannelsCache(channelId)
     if (cachedVideo) {
-      return cachedVideo
+      return await this.filter.getWhiteVideos(cachedVideo)
     }
 
     let result: PlaylistItemListResponse | null = null
@@ -489,7 +435,7 @@ export class YoutubeApiService {
       try {
         const channelResponse = await this.request<ChannelListResponse>(apiKey, YTApiEndpoints.channels, {
           part: 'contentDetails',
-          id: dto.channelId,
+          id: channelId,
         })
 
         const uploadsPlaylist = channelResponse.data.items.find(
@@ -500,7 +446,7 @@ export class YoutubeApiService {
 
         if (!uploadsPlaylist) {
           await this.updateQuota(apiKey, 1)
-          throw new NotFoundException('Uploads playlist not found')
+          throw new PlaylistNotFound()
         }
 
         const playlistResponse = await this.request<PlaylistItemListResponse>(apiKey, YTApiEndpoints.playlistItems, {
@@ -528,7 +474,7 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException()
+          throw new VideoNotFound()
         }
 
         throw new BadRequestException()
@@ -539,31 +485,27 @@ export class YoutubeApiService {
       return []
     }
 
-    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
-
-    const videoIds: string[] = result.items
-      .filter((item) => !blackList.includes(item.snippet.resourceId.videoId))
-      .map((item) => item.snippet.resourceId.videoId)
-
-    if (!videoIds.length) {
+    const videoIds = result.items.map((item) => item.snippet.resourceId.videoId)
+    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+    if (videos.length <= videoIds.length / 2) {
+      await this.cacheProvider.setVideosCache(
+        videos.map((video) => ({ ...video, titleLang: LanguageCode.UK, channelTitleLang: LanguageCode.UK }))
+      )
+      await this.cacheProvider.setChannelsCache(channelId, [])
       return []
     }
 
-    const videos = await this.videoByIds({ videoId: videoIds.join(',') })
+    await this.cacheProvider.setChannelsCache(channelId, videos)
 
-    await this.setRedisCache(CacheKeys.videoByChannelId(dto.channelId), videos, settings.videoByChannelId)
-
-    return videos.slice(0, 20)
+    return videos
   }
 
   public async videoByPlaylistId(dto: YoutubeApiVideoByPlaylistId): Promise<Video[]> {
-    await this.checkAppOnline()
+    const { playlistId } = dto
 
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.videoByPlaylistId(dto.playlistId))
+    const cachedVideo = await this.cacheProvider.getPlaylistCache(playlistId)
     if (cachedVideo) {
-      return cachedVideo
+      return await this.filter.getWhiteVideos(cachedVideo)
     }
 
     let result: PlaylistItemListResponse | null = null
@@ -575,7 +517,7 @@ export class YoutubeApiService {
         const response = await this.request<PlaylistItemListResponse>(apiKey, YTApiEndpoints.playlistItems, {
           part: 'snippet,contentDetails,statistics',
           maxResults: 50,
-          playlistId: dto.playlistId,
+          playlistId,
         })
 
         if (response.data) {
@@ -597,43 +539,32 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException()
+          throw new VideoNotFound()
         }
 
         throw new BadRequestException()
       }
     }
 
-    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
-
-    const videoIds: string[] = result.items
-      .filter((item) => !blackList.includes(item.snippet.resourceId.videoId))
-      .map((item) => item.snippet.resourceId.videoId)
-
-    if (!videoIds.length) {
-      return []
-    }
-
+    const videoIds = result.items.map((item) => item.snippet.resourceId.videoId)
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.setRedisCache(CacheKeys.videoByPlaylistId(dto.playlistId), videos, settings.videoByPlaylistId)
+    await this.cacheProvider.setPlaylistCache(playlistId, videos)
 
     return videos
   }
 
   public async comments(dto: YoutubeApiCommentsDto): Promise<Comment[]> {
-    await this.checkAppOnline()
+    const { videoId } = dto
 
-    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
-    if (blackList.includes(dto.videoId)) {
+    const inBlackList = await this.filter.videoIdInBlacklist(videoId)
+    if (inBlackList) {
       return []
     }
 
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const cachedVideo = await this.getRedisCache<Comment[]>(CacheKeys.comments(dto.videoId))
-    if (cachedVideo) {
-      return cachedVideo
+    const cachedComments = await this.cacheProvider.getCommentsCache(videoId)
+    if (cachedComments) {
+      return cachedComments
     }
 
     let result: CommentThreadListResponse | null = null
@@ -645,7 +576,7 @@ export class YoutubeApiService {
         const response = await this.request<CommentThreadListResponse>(apiKey, YTApiEndpoints.commentThreads, {
           part: 'snippet',
           textFormat: 'plainText',
-          videoId: dto.videoId,
+          videoId,
           maxResults: 100,
         })
 
@@ -679,27 +610,27 @@ export class YoutubeApiService {
       return []
     }
 
-    const comments: Comment[] = result.items.map((item) => ({
-      text: item.snippet.topLevelComment.snippet.textDisplay,
-      author: item.snippet.topLevelComment.snippet.authorDisplayName,
-      avatar: item.snippet.topLevelComment.snippet.authorProfileImageUrl,
-      publishedAt: item.snippet.topLevelComment.snippet.publishedAt,
-      timeAgo: format(new Date(item.snippet.topLevelComment.snippet.publishedAt), 'ru'),
-    }))
+    const comments: Comment[] = result.items.map((item) => {
+      const comment = item.snippet.topLevelComment.snippet
+      const { textDisplay, authorDisplayName, authorProfileImageUrl, publishedAt } = comment
+      return {
+        text: textDisplay,
+        author: authorDisplayName,
+        avatar: authorProfileImageUrl,
+        publishedAt: publishedAt,
+        timeAgo: format(new Date(publishedAt), 'ru'),
+      }
+    })
 
-    await this.setRedisCache(CacheKeys.comments(dto.videoId), comments, settings.videoComments)
+    await this.cacheProvider.setCommentsCache(videoId, comments)
 
     return comments.slice(0, 50)
   }
 
   public async trends(): Promise<Video[]> {
-    await this.checkAppOnline()
-
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const cachedVideo = await this.getRedisCache<Video[]>(CacheKeys.trends())
+    const cachedVideo = await this.cacheProvider.getTrendsCache()
     if (cachedVideo) {
-      return cachedVideo
+      return await this.filter.getWhiteVideos(cachedVideo)
     }
 
     let result: VideoListResponse | null = null
@@ -735,35 +666,30 @@ export class YoutubeApiService {
         }
 
         if (e?.response?.data?.error?.code === 404) {
-          throw new NotFoundException()
+          throw new VideoNotFound()
         }
 
         throw new BadRequestException()
       }
     }
 
-    const blackList = (await this.videoBlacklistService.findAll()).map(({ videoId }) => videoId)
-
-    const videoIds: string[] = result.items.filter((item) => !blackList.includes(item.id)).map((item) => item.id)
-    if (!videoIds.length) {
-      return []
-    }
-
+    const videoIds = result.items.map((item) => item.id)
     const videos = await this.videoByIds({ videoId: videoIds.join(',') })
 
-    await this.setRedisCache(CacheKeys.trends(), videos, settings.trends)
+    await this.cacheProvider.setTrendsCache(videos)
 
     return videos
   }
 
-  public async categoriesWithVideos() {
-    await this.checkAppOnline()
-
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-
-    const cachedData = await this.getRedisCache<CategoryWithVideos[]>(CacheKeys.categoriesWithVideos())
+  public async categoriesWithVideos(): Promise<CategoryWithVideos[]> {
+    const cachedData = await this.cacheProvider.getCategoriesWithVideosCache()
     if (cachedData) {
-      return cachedData
+      return await Promise.all(
+        cachedData.map(async ({ category, videos }) => ({
+          category,
+          videos: await this.filter.getWhiteVideos(videos),
+        }))
+      )
     }
 
     const categories = await this.categories()
@@ -781,7 +707,7 @@ export class YoutubeApiService {
       return []
     }
 
-    await this.setRedisCache(CacheKeys.categoriesWithVideos(), data, settings.categoriesWithVideos)
+    await this.cacheProvider.setCategoriesWithVideosCache(data)
 
     return data
   }
@@ -819,33 +745,8 @@ export class YoutubeApiService {
     return response
   }
 
-  private async checkAppOnline() {
-    const appSettings = await this.settingsService.getAppSettings()
-    if (!appSettings.enabled) {
-      throw new BadRequestException('App offline')
-    }
-  }
-
-  private async setCacheVideoById(video: Video) {
-    const settings = await this.settingsService.getYoutubeCacheSettings()
-    await this.setRedisCache(CacheKeys.videoById(video.id), video, settings.videoById)
-  }
-
   private async updateQuota(apiKey: YoutubeApikey, cost: number) {
     await this.youtubeApikeyService.updateCurrentUsage(apiKey, cost)
     await this.quotaUsageService.addUsage({ currentUsage: cost })
-  }
-
-  private async getRedisCache<T>(key: string): Promise<T | null> {
-    const data = await this.redis.get(key)
-    if (data) {
-      return JSON.parse(data) as T
-    }
-
-    return null
-  }
-
-  private async setRedisCache(key: string, data: any, days: number): Promise<void> {
-    await this.redis.set(key, JSON.stringify(data), 'EX', days * 86_400)
   }
 }

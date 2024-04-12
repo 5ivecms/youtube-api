@@ -33,7 +33,7 @@ export class VideoBlacklistController {
     return this.videoBlacklistService.findOne(Number(id))
   }
 
-  @UseGuards(AuthGuard(['jwt']))
+  @UseGuards(AuthGuard(['api-key', 'jwt']))
   @Post()
   public create(@Body() dto: CreateVideoBlacklistDto) {
     return this.videoBlacklistService.create(dto)

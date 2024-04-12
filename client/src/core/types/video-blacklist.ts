@@ -1,6 +1,8 @@
 export type VideoBlacklistModel = {
   id: number
   videoId: string
+  reason: string
+  createdAt: Date
 }
 
 export type CreateVideoBlacklistsDto = {

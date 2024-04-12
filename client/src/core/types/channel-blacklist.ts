@@ -1,6 +1,8 @@
 export type ChannelBlacklistModel = {
   id: number
   channelId: string
+  reason: string
+  createdAt: Date
 }
 
 export type CreateChannelBlacklistsDto = {

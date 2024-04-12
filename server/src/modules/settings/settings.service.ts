@@ -41,7 +41,9 @@ export class SettingsService {
   }
 
   public async update(id: number, dto: UpdateSettingsDto) {
-    await this.clearCache()
+    if (dto.section) {
+      await this.clearCacheBySection(dto.section)
+    }
     return this.settingsRepository.update(id, dto)
   }
 
@@ -164,6 +166,25 @@ export class SettingsService {
     const keys = await this.redis.keys(`${SETTINGS_CACHE_KEY}*`)
     if (keys.length) {
       await this.redis.del(...keys)
+    }
+  }
+
+  public async clearCacheBySection(section: string) {
+    if (section === 'app') {
+      await this.redis.del(APP_SETTINGS_CACHE_KEY)
+      return
+    }
+    if (section === 'apiKeys') {
+      await this.redis.del(API_KEY_SETTINGS_CACHE_KEY)
+      return
+    }
+    if (section === 'youtubeCache') {
+      await this.redis.del(YOUTUBE_CACHE_SETTINGS_KEY)
+      return
+    }
+    if (section === 'parser') {
+      await this.redis.del(PARSER_SETTINGS_KEY)
+      return
     }
   }
 
