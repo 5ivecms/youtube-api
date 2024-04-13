@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 
 FROM base AS development
-RUN npm install
+RUN npm install --force
 COPY . .
 RUN npm run build
 CMD ["npm", "run", "start:dev"]

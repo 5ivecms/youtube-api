@@ -18,9 +18,6 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-      target: production
-    volumes:
-      - ./server/src:/app/src  
     networks:
       - youtube-api-network
       - youtube-api-external
@@ -31,9 +28,6 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
-      target: production
-    volumes:
-      - ./client/src:/app/src
     networks:
       - youtube-api-network
 
